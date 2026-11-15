@@ -14,7 +14,7 @@ const CONFIG = {
   device: "tx1",
   // Read-only viewer login (Subscribe Only permission). It is visible in the page source.
   viewerUser: "bearalert-viewer",
-  viewerPass: "linda1324@!L",
+  viewerPass: "viewer-password",
 };
 // ================================================
 </script>
@@ -50,7 +50,7 @@ button:hover{filter:brightness(1.12)}button:disabled{opacity:.5;cursor:not-allow
 table{width:100%;border-collapse:collapse;font-size:16px}
 th,td{padding:11px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
 th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:#0f141b;position:sticky;top:0}
-th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
 tr:last-child td{border-bottom:0}
 td.name{font-weight:650}
 .st{font-size:13px;font-weight:700;letter-spacing:.04em}
@@ -66,7 +66,7 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
 </head>
 <body>
 <header>
-  <div><div class="brand">Bear<span>Alert</span></div><div class="sub">SABA Lab · Morgan State University · Work zone alert monitor</div></div>
+  <div><div class="brand">Bear<span>Alert</span></div><div class="sub">SABA Lab · Work zone alert monitor</div></div>
   <div class="sys" id="sys"><span><span class="dot" id="dot"></span><b id="devstate">Connecting…</b></span></div>
 </header>
 
@@ -75,7 +75,7 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
     <div class="tile wide"><div class="k">Last alert</div><div class="v num" id="la">—</div><div class="d" id="la_d">No alerts in the log yet</div></div>
     <div class="tile"><div class="k">Notification latency</div><div class="v num" id="nl">—</div><div class="d" id="nl_d">slowest ACK per alert · median</div></div>
     <div class="tile"><div class="k">Delivery</div><div class="v num" id="dl">—</div><div class="d" id="dl_d">all receivers, all alerts</div></div>
-    <div class="tile"><div class="k">Cloud delay</div><div class="v num" id="cd">—</div><div class="d" id="cd_d">transmitter → this screen</div></div>
+    <div class="tile"><div class="k">Cloud delay</div><div class="v num" id="cd">—</div><div class="d" id="cd_d"></div></div>
   </div>
 
   <div class="actions">
@@ -99,11 +99,11 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
   <div class="tablewrap">
     <table>
       <thead><tr>
-        <th>Receiver</th><th>MAC</th><th>Status</th>
+        <th>Receiver</th><th>Status</th>
         <th>Last RTT</th><th>Avg</th><th>P95</th><th>Jitter</th><th>Min – Max</th>
         <th>Delivery</th><th>Sent / ACK</th><th>Last ACK</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="11" class="muted" style="text-align:center;padding:28px">Waiting for data from the transmitter…</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="10" class="muted" style="text-align:center;padding:28px">Waiting for data from the transmitter…</td></tr></tbody>
     </table>
   </div>
   <div class="legend" id="legend">All times in ms. RTT = alert sent → acknowledgement received (radio round trip). P95 = 95th percentile; jitter = standard deviation of RTT.
@@ -118,6 +118,7 @@ const T = { live:`bearalert/${CONFIG.device}/live`, status:`bearalert/${CONFIG.d
 const OFFLINE_AFTER_S = 6;          // transmitter heartbeat is every 1 s
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const shortMac = m => String(m).replace(/^(\*\*:)+/, '').split(':').slice(-2).join(':');   // last 4 hex digits only
 const ms = (v, d=1) => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(d);
 
 let client = null, state = null, deviceStatus = null, lastSeenMs = 0, cloudDelay = null;
@@ -208,21 +209,21 @@ async function hmacHex(key, msg){
 }
 async function sendCommand(cmd){
   if (!operator || !client || !client.connected) return say('Not connected to the cloud.','bad');
-  if (!state || !state.nonce || !isOnline()) return say('Transmitter is offline — command not sent.','bad');
+  if (!state || !state.nonce || !isOnline()) return say('The transmitter is offline, so the command was not sent.','bad');
   if (pending) return say('Waiting for the previous command…','warn');
   const nonce = state.nonce, sig = await hmacHex(operator.pass, `${cmd}|${nonce}`);
   $('trigger').disabled = true;
   pending = { nonce, cmd, t0: performance.now(),
-    timer: setTimeout(() => { pending = null; $('trigger').disabled = false; say('No response from the transmitter (10 s).','bad'); }, 10000) };
+    timer: setTimeout(() => { pending = null; $('trigger').disabled = false; say('No response from the transmitter after 10 seconds.','bad'); }, 10000) };
   say(cmd === 'alert' ? 'Sending alert…' : 'Sending reset…','warn');
   client.publish(T.cmd, `${cmd}|${nonce}|${sig}`, {qos:1, retain:false}, err => {
-    if (err) { clearTimeout(pending.timer); pending = null; $('trigger').disabled = false; say('Command rejected by the cloud — this login may not have publish permission.','bad'); }
+    if (err) { clearTimeout(pending.timer); pending = null; $('trigger').disabled = false; say('The cloud rejected the command. This login may not have publish permission.','bad'); }
   });
 }
 function confirmReset(){ if (confirm('Erase all saved BearAlert statistics and the alert log, and restart the transmitter?')) sendCommand('reset'); }
 const RESULTS = {
-  sent:['Alert sent to all receivers','ok'], busy:['Previous alert is still awaiting ACKs — try again in a second','warn'],
-  denied:['Rejected: the transmitter did not accept the operator password','bad'], stale:['Dashboard was out of date — please try again','warn'],
+  sent:['Alert sent to all receivers','ok'], busy:['The previous alert is still waiting for acknowledgements. Try again in a second','warn'],
+  denied:['Rejected: the transmitter did not accept the operator password','bad'], stale:['The dashboard was out of date. Try again','warn'],
   restarting:['Statistics erased. Transmitter is restarting…','ok'], failed:['Transmitter could not erase its statistics','bad'],
   unknown:['Transmitter did not recognise the command','bad'] };
 function checkPending(){
@@ -230,7 +231,7 @@ function checkPending(){
   const rt = Math.round(performance.now() - pending.t0);
   clearTimeout(pending.timer); pending = null; $('trigger').disabled = false;
   const [t, c] = RESULTS[state.cmd.result] || [`Result: ${state.cmd.result}`, ''];
-  say(`${t} · command round trip ${rt} ms`, c);
+  say(`${t}. Command round trip ${rt} ms`, c);
 }
 
 // ---------- Alert log + statistics ----------
@@ -282,7 +283,6 @@ function render(){
   const dotCls = !cloudOk ? (cloudState === 'connecting' ? 'warn' : 'bad') : !state ? 'warn' : online ? 'ok' : 'bad';
   parts.push(`<span><span class="dot ${dotCls}"></span><b>${devLabel}</b></span>`);
   if (state) {
-    if (state.channel) parts.push(`<span>ch <b class="num">${state.channel}</b></span>`);
     if (state.rssi) parts.push(`<span><b class="num">${state.rssi}</b> dBm</span>`);
     parts.push(`<span>up <b class="num">${uptimeText(state.uptime)}</b></span>`);
     if (state.ntp != null) parts.push(`<span>clock <b>${state.ntp ? 'synced' : 'not synced'}</b></span>`);
@@ -309,7 +309,7 @@ function render(){
   $('dl_d').textContent = sent ? `${acked} / ${sent} ACKs · ${state.total} alerts` : 'no alerts yet';
   // Cloud delay
   $('cd').innerHTML = cloudDelay != null && online ? `${Math.round(cloudDelay)} <span class="muted" style="font-size:15px">ms</span>` : '—';
-  $('cd_d').textContent = online ? `transmitter → this screen · update ${ago((Date.now()-lastSeenMs)/1000)}` : 'transmitter offline';
+  $('cd_d').textContent = lastSeenMs ? `updated ${ago((Date.now()-lastSeenMs)/1000)}` : '';
 
   // Receiver table
   $('rows').innerHTML = rx.map((r, i) => {
@@ -318,7 +318,7 @@ function render(){
     const dlv = r.sent ? r.delivery : null;
     const lastAck = p.lastAck ? ago(recordAge(p.lastAck)) : (n ? 'before log' : 'never');
     return `<tr>
-      <td class="name">${esc(r.name)}</td><td class="num muted">${esc(r.mac)}</td>
+      <td class="name">${esc(r.name)}</td>
       <td><span class="st ${status[1]}">● ${status[0]}</span></td>
       <td class="num">${n ? ms(r.last,2) : '—'}</td><td class="num">${n ? ms(r.avg) : '—'}</td>
       <td class="num">${ms(p.p95)}</td><td class="num">${ms(p.jitter)}</td>
@@ -344,7 +344,7 @@ function buildLogCSV(records, receivers){
     const t = Number(f[2]), ts = t > 1.7e9 ? new Date(t*1000).toISOString().replace('.000Z','Z') : '';
     for (let i = 0; i < f.length - 6; i++) {
       const r = receivers[i] || {name:`Receiver ${i+1}`, mac:''}, rtt = f[6+i];
-      rows.push([f[0], f[1], ts, f[3], r.name, r.mac, rtt ? 1 : 0, rtt, f[4], f[5]].join(','));
+      rows.push([f[0], f[1], ts, f[3], r.name, shortMac(r.mac), rtt ? 1 : 0, rtt, f[4], f[5]].join(','));
     }
   }
   return rows.join('\r\n') + '\r\n';
@@ -358,7 +358,7 @@ function downloadCSV(){
   if (!state) return say('No data yet.','warn');
   const L = logStats();
   const head = 'receiver,mac,alerts_triggered,sent,acked,failed,delivery_percent,last_rtt_ms,average_rtt_ms,p95_rtt_ms,jitter_ms,min_rtt_ms,max_rtt_ms,ack_timeout_ms';
-  const rows = state.receivers.map((r,i) => { const p = L.per[i] || {}; return [r.name, r.mac, state.total, r.sent, r.acked, r.failed, r.delivery.toFixed(2),
+  const rows = state.receivers.map((r,i) => { const p = L.per[i] || {}; return [r.name, shortMac(r.mac), state.total, r.sent, r.acked, r.failed, r.delivery.toFixed(2),
     r.last.toFixed(3), r.avg.toFixed(3), p.p95 == null ? '' : p.p95.toFixed(2), p.jitter == null ? '' : p.jitter.toFixed(3),
     r.min.toFixed(3), r.max.toFixed(3), state.timeout].join(','); });
   saveCSV([head, ...rows].join('\r\n') + '\r\n', 'BearAlert_Receiver_Summary');
