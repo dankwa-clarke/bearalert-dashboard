@@ -7,70 +7,87 @@
 <script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"></script>
 <script>
 // ================= CONFIGURE ME =================
-// Copy from HiveMQ Cloud > your cluster > Overview / Access Management.
 const CONFIG = {
-  host: "516cdae17c854353a01a7310e6cb8eb2.s1.eu.hivemq.cloud",   // cluster URL (no https://)
-  port: 8884,                                     // HiveMQ Cloud WebSocket (TLS) port
+  host: "516cdae17c854353a01a7310e6cb8eb2.s1.eu.hivemq.cloud",
+  port: 8884,
   path: "/mqtt",
-  device: "tx1",                                 
-  // Public viewer credential: create it with "Subscribe only" permission.
-  // It is visible to anyone who opens this page, so it must not be able to publish.
+  device: "tx1",
+  // Read-only viewer login (Subscribe Only permission). It is visible in the page source.
   viewerUser: "bearalert-viewer",
   viewerPass: "linda1324@!L",
 };
 // ================================================
 </script>
 <style>
-:root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--text:#fff;--muted:#8b949e;--accent:#f59e0b;--ok:#3fb950;--red:#f85149;--warn:#f0c36d}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,-apple-system,Segoe UI,sans-serif}
-header{border-bottom:1px solid var(--line);padding:22px max(20px,calc((100vw - 1050px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.brand{font-size:25px;font-weight:750;letter-spacing:-.5px}.brand span{color:var(--accent)}small,.sub,.mac{color:var(--muted)}.sub{margin-top:5px;font-size:12px}
-.badges{display:flex;gap:8px;flex-wrap:wrap}
-.status{font-size:12px;border:1px solid var(--line);padding:7px 10px;border-radius:7px;white-space:nowrap;color:var(--muted)}
-.status.ok{color:var(--ok);border-color:#245c38}.status.bad{color:var(--red);border-color:#6e2a2a}.status.warn{color:var(--warn);border-color:#5c4a1c}
-main{max-width:1090px;margin:auto;padding:26px 20px}.top{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
-.panel,.receiver{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:17px}.label{font-size:12px;color:var(--muted)}.value{font-size:23px;font-weight:700;margin-top:7px}
-.value small{font-size:12px;font-weight:500}
-.actions{display:flex;flex-wrap:wrap;gap:10px;margin:17px 0 10px;align-items:center}
-button,.button{border:0;border-radius:8px;padding:12px 17px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;text-decoration:none;color:#111827;background:var(--accent)}
-button:hover{filter:brightness(1.13)}button:disabled{opacity:.5;cursor:not-allowed;filter:none}
-.secondary{background:#21262d;color:#fff}.danger{background:#da3633;color:#fff}
-.login{display:none;gap:8px;flex-wrap:wrap;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px}
-.login input{background:#0d1117;border:1px solid var(--line);color:#fff;border-radius:7px;padding:10px;font:inherit;min-width:170px}
-.msg{min-height:20px;margin:4px 0 14px;font-size:13px}.msg.ok{color:var(--ok)}.msg.bad{color:var(--red)}.msg.warn{color:var(--warn)}
-.section{display:flex;justify-content:space-between;align-items:center;margin:23px 0 13px}h2{font-size:17px;margin:0}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.receiver-head{display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:15px}
-.receiver-name{font-weight:700}.mac{font-size:11px;margin-top:5px}.pill{font-size:11px;color:var(--ok);background:#123524;border-radius:5px;padding:6px 8px}
-.pill.bad{color:var(--red);background:#401b1b}.pill.wait{color:var(--warn);background:#403517}.pill.idle{color:var(--muted);background:#21262d}
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.metric{border-top:1px solid var(--line);padding-top:10px}.metric .label{display:block}.metric b{display:block;margin-top:5px;font-size:15px}
-.stale .receiver,.stale .top{opacity:.55}
-.empty{color:var(--muted);padding:30px;text-align:center;grid-column:1/-1}
-footer{text-align:center;color:var(--muted);border-top:1px solid var(--line);margin-top:34px;padding:23px 10px;line-height:1.9}footer strong{color:var(--accent)}.heart{color:var(--red)}
-@media(max-width:750px){header{padding:18px}.top{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.value{font-size:20px}}
-@media(max-width:420px){.metrics{grid-template-columns:repeat(2,1fr)}.actions>*{flex:1;text-align:center}}
+:root{--bg:#0b0f14;--panel:#121820;--line:#263040;--text:#e8edf3;--muted:#8592a3;--accent:#f59e0b;--ok:#3fb950;--red:#f85149;--warn:#e3b341;
+      --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:17px system-ui,-apple-system,Segoe UI,sans-serif}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+header{border-bottom:1px solid var(--line);padding:18px max(20px,calc((100vw - 1260px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{font-size:28px;font-weight:750;letter-spacing:-.5px}.brand span{color:var(--accent)}
+.sub{font-size:14px;color:var(--muted);margin-top:3px}
+.sys{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:15px;color:var(--muted)}
+.sys b{color:var(--text);font-weight:600}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--muted);margin-right:7px;vertical-align:1px}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--red)}.dot.warn{background:var(--warn)}
+main{max-width:1300px;margin:auto;padding:22px 20px}
+.tiles{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:12px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.tile .k{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font-size:28px;font-weight:700;margin-top:6px;white-space:nowrap}
+.tile .d{font-size:14px;color:var(--muted);margin-top:4px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 6px;align-items:center}
+button{border:0;border-radius:8px;padding:11px 17px;font:600 15px system-ui,sans-serif;cursor:pointer;color:#111827;background:var(--accent)}
+button:hover{filter:brightness(1.12)}button:disabled{opacity:.5;cursor:not-allowed;filter:none}
+.secondary{background:#1c2430;color:var(--text);border:1px solid var(--line)}.danger{background:#da3633;color:#fff}
+.spacer{flex:1}
+.login{display:none;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
+.login input{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:10px;font:inherit;min-width:180px}
+.msg{min-height:24px;margin:6px 0 10px;font-size:15px}.msg.ok{color:var(--ok)}.msg.bad{color:var(--red)}.msg.warn{color:var(--warn)}
+.tablewrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:16px}
+th,td{padding:11px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:#0f141b;position:sticky;top:0}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}
+tr:last-child td{border-bottom:0}
+td.name{font-weight:650}
+.st{font-size:13px;font-weight:700;letter-spacing:.04em}
+.st.ok{color:var(--ok)}.st.bad{color:var(--red)}.st.warn{color:var(--warn)}.st.idle{color:var(--muted)}
+.bar{display:inline-block;width:46px;height:6px;border-radius:3px;background:#263040;margin-left:8px;vertical-align:2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok)}
+.legend{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.6}
+.stale .tiles,.stale .tablewrap{opacity:.5}
+footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;padding:16px 10px;border-top:1px solid var(--line)}
+@media(max-width:900px){.tiles{grid-template-columns:1fr 1fr}.tile.wide{grid-column:1/-1}}
+@media(max-width:420px){.tile .v{font-size:22px}button{flex:1 1 40%}.spacer{display:none}}
 </style>
 </head>
 <body>
 <header>
-  <div><div class="brand">Bear<span>Alert</span></div><div class="sub">SABA Lab · Morgan State University · Live cloud dashboard</div></div>
-  <div class="badges"><div id="cloud" class="status">Cloud: connecting…</div><div id="device" class="status">Transmitter: —</div></div>
+  <div><div class="brand">Bear<span>Alert</span></div><div class="sub">SABA Lab · Morgan State University · Work zone alert monitor</div></div>
+  <div class="sys" id="sys"><span><span class="dot" id="dot"></span><b id="devstate">Connecting…</b></span></div>
 </header>
+
 <main id="main">
-  <div class="top">
-    <div class="panel"><div class="label">Receivers</div><div id="rxcount" class="value">—</div></div>
-    <div class="panel"><div class="label">Alerts triggered</div><div id="total" class="value">—</div></div>
-    <div class="panel"><div class="label">Last update</div><div id="age" class="value">—</div></div>
-    <div class="panel"><div class="label">Hotspot signal</div><div id="rssi" class="value">—</div></div>
+  <div class="tiles">
+    <div class="tile wide"><div class="k">Last alert</div><div class="v num" id="la">—</div><div class="d" id="la_d">No alerts in the log yet</div></div>
+    <div class="tile"><div class="k">Notification latency</div><div class="v num" id="nl">—</div><div class="d" id="nl_d">slowest ACK per alert · median</div></div>
+    <div class="tile"><div class="k">Delivery</div><div class="v num" id="dl">—</div><div class="d" id="dl_d">all receivers, all alerts</div></div>
+    <div class="tile"><div class="k">Cloud delay</div><div class="v num" id="cd">—</div><div class="d" id="cd_d">transmitter → this screen</div></div>
   </div>
 
   <div class="actions">
-    <a id="csv" class="button secondary" href="#" onclick="downloadCSV();return false">Download CSV</a>
-    <button id="loginBtn" class="secondary" onclick="showLogin(true)">Operator sign-in</button>
-    <span id="opControls" style="display:none;gap:10px;flex-wrap:wrap">
-      <button id="trigger" onclick="sendCommand('alert')">Trigger BearAlert</button>
+    <span id="opControls" style="display:none">
+      <button id="trigger" onclick="sendCommand('alert')">Trigger alert</button>
       <button class="danger" onclick="confirmReset()">Reset statistics</button>
-      <button class="secondary" onclick="logout()">Sign out</button>
     </span>
+    <span class="spacer"></span>
+    <button class="secondary" onclick="downloadLogCSV()">Alert log CSV</button>
+    <button class="secondary" onclick="downloadCSV()">Summary CSV</button>
+    <button id="loginBtn" class="secondary" onclick="showLogin(true)">Operator sign-in</button>
+    <button id="logoutBtn" class="secondary" style="display:none" onclick="logout()">Sign out</button>
   </div>
   <form id="login" class="login" onsubmit="login(event)">
     <input id="opUser" placeholder="Operator username" autocomplete="username" required>
@@ -79,70 +96,107 @@ footer{text-align:center;color:var(--muted);border-top:1px solid var(--line);mar
   </form>
   <div id="msg" class="msg"></div>
 
-  <div class="section"><h2>Receiver monitoring</h2><small>ESP-NOW · relayed via MQTT</small></div>
-  <div id="receivers" class="grid"><div class="empty">Waiting for data from the transmitter…</div></div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th>Receiver</th><th>MAC</th><th>Status</th>
+        <th>Last RTT</th><th>Avg</th><th>P95</th><th>Jitter</th><th>Min – Max</th>
+        <th>Delivery</th><th>Sent / ACK</th><th>Last ACK</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="11" class="muted" style="text-align:center;padding:28px">Waiting for data from the transmitter…</td></tr></tbody>
+    </table>
+  </div>
+  <div class="legend" id="legend">All times in ms. RTT = alert sent → acknowledgement received (radio round trip). P95 = 95th percentile; jitter = standard deviation of RTT.
+    P95, jitter and last ACK use the stored alert log; avg, min, max and delivery are running totals since the last reset.</div>
 
-  <footer>Made with <span class="heart">♥</span> by <strong>SMARTER</strong><br>Morgan State University<br><small>SABA Lab | BearAlert Work Zone Safety System</small></footer>
+  <footer>SABA Lab · BearAlert Work Zone Safety System · Morgan State University</footer>
 </main>
 
 <script>
-const T = { live:`bearalert/${CONFIG.device}/live`, status:`bearalert/${CONFIG.device}/status`, cmd:`bearalert/${CONFIG.device}/cmd` };
+const T = { live:`bearalert/${CONFIG.device}/live`, status:`bearalert/${CONFIG.device}/status`,
+            cmd:`bearalert/${CONFIG.device}/cmd`, hist:`bearalert/${CONFIG.device}/history` };
+const OFFLINE_AFTER_S = 6;          // transmitter heartbeat is every 1 s
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt = (v,d=2) => Number(v).toFixed(d);
-const metric = (l,v) => `<div class="metric"><span class="label">${l}</span><b>${v}</b></div>`;
+const ms = (v, d=1) => (v == null || isNaN(v)) ? '—' : Number(v).toFixed(d);
 
-let client = null, state = null, deviceStatus = null, receivedAt = 0;
-let operator = null;           // {user, pass} while signed in (memory only)
-let pending = null;            // outstanding command {nonce, cmd, timer}
+let client = null, state = null, deviceStatus = null, lastSeenMs = 0, cloudDelay = null;
+let operator = null, pending = null;
+const logChunks = {};               // alert-log chunk index -> text (one line per alert)
 
-function setBadge(id, text, cls){ const e=$(id); e.textContent=text; e.className='status '+(cls||''); }
-function say(text, cls){ $('msg').textContent=text; $('msg').className='msg '+(cls||''); }
+function say(text, cls){ $('msg').textContent = text; $('msg').className = 'msg ' + (cls||''); }
 
+// ---------- Connection ----------
 function connect(user, pass, onAuthFail){
   if (client) { client.removeAllListeners(); client.end(true); }
-  setBadge('cloud','Cloud: connecting…','warn');
+  cloudState = 'connecting'; render();
   client = mqtt.connect(`wss://${CONFIG.host}:${CONFIG.port}${CONFIG.path}`, {
     username:user, password:pass, clientId:'bearweb-'+Math.random().toString(16).slice(2,10),
-    clean:true, reconnectPeriod:4000, connectTimeout:10000, protocolVersion:4
-  });
-  client.on('connect', () => {
-    setBadge('cloud', operator ? `Cloud: connected (${operator.user})` : 'Cloud: connected', 'ok');
-    client.subscribe([T.live, T.status], {qos:1});
-  });
-  client.on('reconnect', () => setBadge('cloud','Cloud: reconnecting…','warn'));
-  client.on('offline',  () => setBadge('cloud','Cloud: offline','bad'));
-  client.on('error', err => {
-    // MQTT 3.1.1 CONNACK 4 = bad username/password, 5 = not authorized
-    if (err && (err.code === 4 || err.code === 5)) { client.end(true); onAuthFail && onAuthFail(); }
-  });
-  client.on('message', (topic, payload) => {
-    const text = payload.toString();
-    if (topic === T.status) { deviceStatus = text; render(); return; }
-    if (topic === T.live) {
-      try { state = JSON.parse(text); receivedAt = Date.now(); } catch(e) { return; }
-      checkPending(); render();
-    }
-  });
+    clean:true, reconnectPeriod:4000, connectTimeout:10000, protocolVersion:4 });
+  client.on('connect', () => { cloudState = 'connected'; client.subscribe([T.live, T.status, T.hist + '/+'], {qos:1}); render(); });
+  client.on('reconnect', () => { cloudState = 'connecting'; render(); });
+  client.on('offline',  () => { cloudState = 'offline'; render(); });
+  client.on('error', err => { if (err && (err.code === 4 || err.code === 5)) { client.end(true); onAuthFail && onAuthFail(); } });
+  client.on('message', onMessage);
 }
+let cloudState = 'connecting';
 function connectViewer(){
   operator = null; updateOperatorUI();
-  connect(CONFIG.viewerUser, CONFIG.viewerPass, () => setBadge('cloud','Cloud: viewer credential rejected — check CONFIG','bad'));
+  connect(CONFIG.viewerUser, CONFIG.viewerPass, () => { cloudState = 'denied'; render(); });
+}
+
+// Fresh (non-retained) messages count from arrival; retained ones replayed on page load
+// count from the transmitter's own timestamp, so an old "online" doesn't look current.
+function seen(packet, tsMs){
+  const t = packet && packet.retain ? (tsMs > 1.7e12 ? tsMs : 0) : Date.now();
+  if (t > lastSeenMs) lastSeenMs = t;
+}
+function isOnline(){
+  if (deviceStatus === 'offline') return false;
+  return lastSeenMs > 0 && (Date.now() - lastSeenMs) / 1000 < OFFLINE_AFTER_S;
+}
+
+function onMessage(topic, payload, packet){
+  const text = payload.toString();
+  if (topic.startsWith(T.hist + '/')) {
+    const i = topic.slice(T.hist.length + 1);
+    if (text) logChunks[i] = text; else delete logChunks[i];
+    statsCache = null; render(); return;
+  }
+  if (topic === T.status) {
+    // "online:<unix ms>" every second, or "offline" (published by the broker when the transmitter drops)
+    const [st, tsTxt] = text.split(':'); deviceStatus = st;
+    if (st === 'online') {
+      let ts = Number(tsTxt); if (ts && ts < 1e12) ts *= 1000;      // older firmware sent seconds
+      seen(packet, ts);
+      if (!packet.retain && ts > 1.7e12) {                            // cloud delay, smoothed
+        const d = Math.max(0, Date.now() - ts);
+        cloudDelay = cloudDelay == null ? d : cloudDelay * 0.8 + d * 0.2;
+      }
+    }
+    render(); return;
+  }
+  if (topic === T.live) {
+    try { state = JSON.parse(text); } catch(e) { return; }
+    seen(packet, state.ts * 1000);
+    checkPending(); render();
+  }
 }
 
 // ---------- Operator ----------
 function showLogin(show){ $('login').style.display = show ? 'flex' : 'none'; if (show) $('opUser').focus(); }
 function updateOperatorUI(){
-  $('opControls').style.display = operator ? 'inline-flex' : 'none';
+  $('opControls').style.display = operator ? 'contents' : 'none';
   $('loginBtn').style.display = operator ? 'none' : '';
+  $('logoutBtn').style.display = operator ? '' : 'none';
 }
 function login(ev){
   ev.preventDefault();
-  const user=$('opUser').value.trim(), pass=$('opPass').value;
+  const user = $('opUser').value.trim(), pass = $('opPass').value;
   say('Signing in…','warn');
   operator = {user, pass};
   connect(user, pass, () => { say('Sign-in failed: wrong operator username or password.','bad'); connectViewer(); });
-  client.once('connect', () => { showLogin(false); $('opPass').value=''; updateOperatorUI(); say(`Signed in as ${user}.`,'ok'); });
+  client.once('connect', () => { showLogin(false); $('opPass').value = ''; updateOperatorUI(); say(`Signed in as ${user}.`,'ok'); });
 }
 function logout(){ say('Signed out.',''); connectViewer(); }
 
@@ -156,77 +210,161 @@ async function sendCommand(cmd){
   if (!operator || !client || !client.connected) return say('Not connected to the cloud.','bad');
   if (!state || !state.nonce || !isOnline()) return say('Transmitter is offline — command not sent.','bad');
   if (pending) return say('Waiting for the previous command…','warn');
-  const nonce = state.nonce;
-  const sig = await hmacHex(operator.pass, `${cmd}|${nonce}`);
+  const nonce = state.nonce, sig = await hmacHex(operator.pass, `${cmd}|${nonce}`);
   $('trigger').disabled = true;
-  pending = { nonce, cmd, timer: setTimeout(() => { pending=null; $('trigger').disabled=false; say('No response from the transmitter (10 s). Check that it is online.','bad'); }, 10000) };
+  pending = { nonce, cmd, t0: performance.now(),
+    timer: setTimeout(() => { pending = null; $('trigger').disabled = false; say('No response from the transmitter (10 s).','bad'); }, 10000) };
   say(cmd === 'alert' ? 'Sending alert…' : 'Sending reset…','warn');
   client.publish(T.cmd, `${cmd}|${nonce}|${sig}`, {qos:1, retain:false}, err => {
-    if (err) { clearTimeout(pending.timer); pending=null; $('trigger').disabled=false; say('Publish rejected — this account may not have publish permission.','bad'); }
+    if (err) { clearTimeout(pending.timer); pending = null; $('trigger').disabled = false; say('Command rejected by the cloud — this login may not have publish permission.','bad'); }
   });
 }
-function confirmReset(){ if (confirm('Erase all saved BearAlert statistics and restart the transmitter?')) sendCommand('reset'); }
+function confirmReset(){ if (confirm('Erase all saved BearAlert statistics and the alert log, and restart the transmitter?')) sendCommand('reset'); }
 const RESULTS = {
-  sent:['Alert sent to all receivers.','ok'],
-  busy:['Previous alert is still awaiting ACKs — try again in a second.','warn'],
-  denied:['Rejected: operator password does not match the transmitter (OPERATOR_KEY).','bad'],
-  stale:['Dashboard was out of date — please try again.','warn'],
-  restarting:['Statistics erased. Transmitter is restarting…','ok'],
-  failed:['Transmitter could not erase its statistics.','bad'],
-  unknown:['Transmitter did not recognise the command.','bad'],
-};
+  sent:['Alert sent to all receivers','ok'], busy:['Previous alert is still awaiting ACKs — try again in a second','warn'],
+  denied:['Rejected: the transmitter did not accept the operator password','bad'], stale:['Dashboard was out of date — please try again','warn'],
+  restarting:['Statistics erased. Transmitter is restarting…','ok'], failed:['Transmitter could not erase its statistics','bad'],
+  unknown:['Transmitter did not recognise the command','bad'] };
 function checkPending(){
   if (!pending || !state.cmd || state.cmd.nonce !== pending.nonce) return;
-  clearTimeout(pending.timer); pending=null; $('trigger').disabled=false;
-  const [t,c] = RESULTS[state.cmd.result] || [`Result: ${state.cmd.result}`,''];
-  say(t,c);
+  const rt = Math.round(performance.now() - pending.t0);
+  clearTimeout(pending.timer); pending = null; $('trigger').disabled = false;
+  const [t, c] = RESULTS[state.cmd.result] || [`Result: ${state.cmd.result}`, ''];
+  say(`${t} · command round trip ${rt} ms`, c);
 }
+
+// ---------- Alert log + statistics ----------
+// Device line: record,alert_id,unix_time,uptime_s,channel,rssi,rtt_1..rtt_N (empty rtt = no ACK)
+function logRecords(){
+  const byRecord = new Map();
+  for (const text of Object.values(logChunks)) for (const line of text.split('\n')) {
+    const f = line.trim().split(','); if (f.length < 7) continue;
+    byRecord.set(Number(f[0]), f);
+  }
+  return [...byRecord.keys()].sort((a,b) => a-b).map(k => byRecord.get(k));
+}
+function pct(sorted, p){ if (!sorted.length) return null; return sorted[Math.max(0, Math.ceil(p * sorted.length) - 1)]; }
+function stdev(a){ if (a.length < 2) return null; const m = a.reduce((x,y)=>x+y,0)/a.length; return Math.sqrt(a.reduce((s,x)=>s+(x-m)**2,0)/(a.length-1)); }
+let statsCache = null;
+function logStats(){
+  if (statsCache) return statsCache;
+  const recs = logRecords(), n = recs.length ? recs[0].length - 6 : 0;
+  const per = [];
+  for (let i = 0; i < n; i++) {
+    const v = [], lastAck = {rec:null};
+    for (const f of recs) if (f[6+i] !== '') { v.push(Number(f[6+i])); lastAck.rec = f; }
+    const s = [...v].sort((a,b)=>a-b);
+    per.push({ p95: pct(s, .95), jitter: stdev(v), lastAck: lastAck.rec, count: v.length });
+  }
+  const slowest = recs.map(f => { const v = f.slice(6).filter(x => x !== '').map(Number); return v.length ? Math.max(...v) : null; })
+                      .filter(x => x != null).sort((a,b)=>a-b);
+  statsCache = { recs, per, slowestMedian: pct(slowest, .5), slowestP95: pct(slowest, .95), slowestN: slowest.length };
+  return statsCache;
+}
+// Age of a log record in seconds (prefers NTP time; falls back to uptime within the same boot).
+function recordAge(f){
+  const t = Number(f[2]);
+  if (t > 1.7e9) return Date.now()/1000 - t;
+  if (state && Number(f[3]) <= state.uptime) return state.uptime - Number(f[3]);
+  return null;
+}
+function ago(s){ if (s == null) return '—'; s = Math.max(0, s); if (s < 60) return Math.round(s)+' s ago'; if (s < 3600) return Math.round(s/60)+' min ago'; if (s < 172800) return Math.round(s/3600)+' h ago'; return Math.round(s/86400)+' d ago'; }
+function uptimeText(s){ const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60); return (d ? d+'d ' : '') + (d||h ? h+'h ' : '') + m+'m'; }
+function clockTime(t){ return t > 1.7e9 ? new Date(t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ''; }
 
 // ---------- Rendering ----------
-function ageSeconds(){
-  if (!state) return null;
-  const nowS = Date.now()/1000;
-  if (state.ts > 1700000000) return Math.max(0, nowS - state.ts);  // device NTP time
-  return (Date.now() - receivedAt)/1000;
-}
-// Online = live data received recently (the transmitter publishes at least every 15 s).
-// The retained status topic can lag behind after a reconnect, so fresh data wins.
-function isOnline(){ const a = ageSeconds(); return a != null && a < 45; }
-function ageText(s){ if (s==null) return '—'; if (s<5) return 'just now'; if (s<90) return Math.round(s)+' s ago'; if (s<5400) return Math.round(s/60)+' min ago'; return Math.round(s/3600)+' h ago'; }
 function render(){
-  const age = ageSeconds();
-  const online = isOnline();
-  setBadge('device', !state && deviceStatus==null ? 'Transmitter: —' : online ? 'Transmitter: online' : 'Transmitter: offline', !state && deviceStatus==null ? '' : online?'ok':'bad');
+  const online = isOnline(), cloudOk = cloudState === 'connected';
   $('main').classList.toggle('stale', !!state && !online);
-  $('age').textContent = ageText(age);
+  const parts = [];
+  const devLabel = !cloudOk ? (cloudState === 'denied' ? 'Viewer login rejected — check CONFIG' : cloudState === 'offline' ? 'Cloud offline' : 'Connecting…')
+                 : !state ? 'Waiting for transmitter…' : online ? 'Transmitter online' : 'Transmitter offline';
+  const dotCls = !cloudOk ? (cloudState === 'connecting' ? 'warn' : 'bad') : !state ? 'warn' : online ? 'ok' : 'bad';
+  parts.push(`<span><span class="dot ${dotCls}"></span><b>${devLabel}</b></span>`);
+  if (state) {
+    if (state.channel) parts.push(`<span>ch <b class="num">${state.channel}</b></span>`);
+    if (state.rssi) parts.push(`<span><b class="num">${state.rssi}</b> dBm</span>`);
+    parts.push(`<span>up <b class="num">${uptimeText(state.uptime)}</b></span>`);
+    if (state.ntp != null) parts.push(`<span>clock <b>${state.ntp ? 'synced' : 'not synced'}</b></span>`);
+    if (state.fw) parts.push(`<span>fw <b class="num">${esc(state.fw)}</b></span>`);
+  }
+  if (operator && cloudOk) parts.push(`<span>signed in as <b>${esc(operator.user)}</b></span>`);
+  $('sys').innerHTML = parts.join('');
   if (!state) return;
-  $('total').textContent = state.total;
-  $('rxcount').textContent = state.receivers.length;
-  $('rssi').innerHTML = state.rssi ? `${state.rssi} dBm <small>ch ${state.channel}</small>` : '—';
-  $('receivers').innerHTML = state.receivers.map(r => {
-    const status = r.waiting?'WAITING':r.sent===0?'NOT TESTED':r.success?'ACK RECEIVED':'NO ACK';
-    const cls = r.waiting?'wait':r.sent===0?'idle':r.success?'':'bad';
-    const n = r.acked>0;
-    return `<article class="receiver"><div class="receiver-head"><div><div class="receiver-name">${esc(r.name)}</div><div class="mac">${esc(r.mac)}</div></div><span class="pill ${cls}">${status}</span></div><div class="metrics">`
-      + metric('Last RTT', n?fmt(r.last)+' ms':'—') + metric('Avg RTT', n?fmt(r.avg)+' ms':'—')
-      + metric('Min RTT', n?fmt(r.min)+' ms':'—') + metric('Max RTT', n?fmt(r.max)+' ms':'—')
-      + metric('Est. one-way', n?fmt(r.last/2)+' ms':'—') + metric('Delivery', fmt(r.delivery,1)+'%')
-      + metric('Sent', r.sent) + metric('ACKs', r.acked) + metric('Failures', r.failed) + '</div></article>';
+
+  const L = logStats(), recs = L.recs, rx = state.receivers;
+  // Last alert
+  if (recs.length) {
+    const f = recs[recs.length-1], v = f.slice(6), acks = v.filter(x => x !== '').map(Number);
+    $('la').innerHTML = `#${esc(f[1])} · ${acks.length}/${v.length} ACK`;
+    $('la_d').textContent = [clockTime(Number(f[2])), ago(recordAge(f)), acks.length ? `slowest ${ms(Math.max(...acks))} ms` : 'no ACKs'].filter(Boolean).join(' · ')
+                            + ` · ${Math.min(state.logged, state.logMax)} alerts logged`;
+  } else { $('la').textContent = state.total ? `${state.total} total` : '—'; $('la_d').textContent = 'No alerts in the log yet'; }
+  // Notification latency
+  $('nl').innerHTML = L.slowestMedian != null ? `${ms(L.slowestMedian)} <span class="muted" style="font-size:15px">ms</span>` : '—';
+  $('nl_d').textContent = L.slowestMedian != null ? `median · P95 ${ms(L.slowestP95)} ms · n=${L.slowestN}` : 'slowest ACK per alert';
+  // Delivery
+  const sent = rx.reduce((a,r)=>a+r.sent,0), acked = rx.reduce((a,r)=>a+r.acked,0);
+  $('dl').innerHTML = sent ? `${(100*acked/sent).toFixed(1)}<span class="muted" style="font-size:15px">%</span>` : '—';
+  $('dl_d').textContent = sent ? `${acked} / ${sent} ACKs · ${state.total} alerts` : 'no alerts yet';
+  // Cloud delay
+  $('cd').innerHTML = cloudDelay != null && online ? `${Math.round(cloudDelay)} <span class="muted" style="font-size:15px">ms</span>` : '—';
+  $('cd_d').textContent = online ? `transmitter → this screen · update ${ago((Date.now()-lastSeenMs)/1000)}` : 'transmitter offline';
+
+  // Receiver table
+  $('rows').innerHTML = rx.map((r, i) => {
+    const p = L.per[i] || {}, n = r.acked > 0;
+    const status = r.waiting ? ['WAITING','warn'] : r.sent === 0 ? ['NOT TESTED','idle'] : r.success ? ['ACK','ok'] : ['NO ACK','bad'];
+    const dlv = r.sent ? r.delivery : null;
+    const lastAck = p.lastAck ? ago(recordAge(p.lastAck)) : (n ? 'before log' : 'never');
+    return `<tr>
+      <td class="name">${esc(r.name)}</td><td class="num muted">${esc(r.mac)}</td>
+      <td><span class="st ${status[1]}">● ${status[0]}</span></td>
+      <td class="num">${n ? ms(r.last,2) : '—'}</td><td class="num">${n ? ms(r.avg) : '—'}</td>
+      <td class="num">${ms(p.p95)}</td><td class="num">${ms(p.jitter)}</td>
+      <td class="num">${n ? ms(r.min) + ' – ' + ms(r.max) : '—'}</td>
+      <td class="num">${dlv == null ? '—' : dlv.toFixed(1) + '%'}<span class="bar"><i style="width:${dlv||0}%;background:${dlv>=95?'var(--ok)':dlv>=80?'var(--warn)':'var(--red)'}"></i></span></td>
+      <td class="num">${r.sent} / ${r.acked}</td>
+      <td class="num muted">${lastAck}</td></tr>`;
   }).join('');
 }
-setInterval(render, 1000);   // keep "last update" ticking
+setInterval(render, 1000);
 
-function downloadCSV(){
-  if (!state) return say('No data yet.','warn');
-  const head = 'receiver,mac,alerts_triggered,sent,acked,failed,pending,delivery_percent,last_rtt_ms,average_rtt_ms,min_rtt_ms,max_rtt_ms,estimated_one_way_ms,ack_timeout_ms';
-  const rows = state.receivers.map(r => [r.name,r.mac,state.total,r.sent,r.acked,r.failed,r.waiting?1:0,fmt(r.delivery),fmt(r.last,3),fmt(r.avg,3),fmt(r.min,3),fmt(r.max,3),fmt(r.last/2,3),state.timeout].join(','));
-  const blob = new Blob([[head,...rows].join('\r\n')+'\r\n'], {type:'text/csv'});
+// ---------- CSV export ----------
+function saveCSV(text, name){
+  const blob = new Blob([text], {type:'text/csv'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `BearAlert_Receiver_Summary_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
+  a.download = `${name}_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`;
   a.click(); URL.revokeObjectURL(a.href);
 }
+// One row per receiver per alert (long format for Excel / pandas / MATLAB).
+function buildLogCSV(records, receivers){
+  const rows = ['record,alert_id,timestamp_utc,uptime_s,receiver,mac,acked,rtt_ms,channel,rssi_dbm'];
+  for (const f of records) {
+    const t = Number(f[2]), ts = t > 1.7e9 ? new Date(t*1000).toISOString().replace('.000Z','Z') : '';
+    for (let i = 0; i < f.length - 6; i++) {
+      const r = receivers[i] || {name:`Receiver ${i+1}`, mac:''}, rtt = f[6+i];
+      rows.push([f[0], f[1], ts, f[3], r.name, r.mac, rtt ? 1 : 0, rtt, f[4], f[5]].join(','));
+    }
+  }
+  return rows.join('\r\n') + '\r\n';
+}
+function downloadLogCSV(){
+  const recs = logRecords();
+  if (!recs.length) return say('No alerts in the log yet.','warn');
+  saveCSV(buildLogCSV(recs, state ? state.receivers : []), 'BearAlert_Alert_Log');
+}
+function downloadCSV(){
+  if (!state) return say('No data yet.','warn');
+  const L = logStats();
+  const head = 'receiver,mac,alerts_triggered,sent,acked,failed,delivery_percent,last_rtt_ms,average_rtt_ms,p95_rtt_ms,jitter_ms,min_rtt_ms,max_rtt_ms,ack_timeout_ms';
+  const rows = state.receivers.map((r,i) => { const p = L.per[i] || {}; return [r.name, r.mac, state.total, r.sent, r.acked, r.failed, r.delivery.toFixed(2),
+    r.last.toFixed(3), r.avg.toFixed(3), p.p95 == null ? '' : p.p95.toFixed(2), p.jitter == null ? '' : p.jitter.toFixed(3),
+    r.min.toFixed(3), r.max.toFixed(3), state.timeout].join(','); });
+  saveCSV([head, ...rows].join('\r\n') + '\r\n', 'BearAlert_Receiver_Summary');
+}
 
-if (typeof mqtt === 'undefined') setBadge('cloud','Cloud: could not load MQTT library','bad');
+if (typeof mqtt === 'undefined') { cloudState = 'offline'; render(); say('Could not load the dashboard. Check your internet connection.','bad'); }
 else connectViewer();
 </script>
 </body>
