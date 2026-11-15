@@ -12,7 +12,7 @@ const CONFIG = {
   host: "516cdae17c854353a01a7310e6cb8eb2.s1.eu.hivemq.cloud",   // cluster URL (no https://)
   port: 8884,                                     // HiveMQ Cloud WebSocket (TLS) port
   path: "/mqtt",
-  device: "tx1",                                  // DEVICE_ID in secrets.h
+  device: "tx1",                                 
   // Public viewer credential: create it with "Subscribe only" permission.
   // It is visible to anyone who opens this page, so it must not be able to publish.
   viewerUser: "bearalert-viewer",
@@ -154,7 +154,7 @@ async function hmacHex(key, msg){
 }
 async function sendCommand(cmd){
   if (!operator || !client || !client.connected) return say('Not connected to the cloud.','bad');
-  if (!state || !state.nonce || deviceStatus !== 'online') return say('Transmitter is offline — command not sent.','bad');
+  if (!state || !state.nonce || !isOnline()) return say('Transmitter is offline — command not sent.','bad');
   if (pending) return say('Waiting for the previous command…','warn');
   const nonce = state.nonce;
   const sig = await hmacHex(operator.pass, `${cmd}|${nonce}`);
@@ -189,11 +189,14 @@ function ageSeconds(){
   if (state.ts > 1700000000) return Math.max(0, nowS - state.ts);  // device NTP time
   return (Date.now() - receivedAt)/1000;
 }
+// Online = live data received recently (the transmitter publishes at least every 15 s).
+// The retained status topic can lag behind after a reconnect, so fresh data wins.
+function isOnline(){ const a = ageSeconds(); return a != null && a < 45; }
 function ageText(s){ if (s==null) return '—'; if (s<5) return 'just now'; if (s<90) return Math.round(s)+' s ago'; if (s<5400) return Math.round(s/60)+' min ago'; return Math.round(s/3600)+' h ago'; }
 function render(){
   const age = ageSeconds();
-  const online = deviceStatus === 'online' && age != null && age < 45;
-  setBadge('device', deviceStatus==null ? 'Transmitter: —' : online ? 'Transmitter: online' : 'Transmitter: offline', deviceStatus==null?'':online?'ok':'bad');
+  const online = isOnline();
+  setBadge('device', !state && deviceStatus==null ? 'Transmitter: —' : online ? 'Transmitter: online' : 'Transmitter: offline', !state && deviceStatus==null ? '' : online?'ok':'bad');
   $('main').classList.toggle('stale', !!state && !online);
   $('age').textContent = ageText(age);
   if (!state) return;
