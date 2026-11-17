@@ -33,7 +33,14 @@ header{border-bottom:1px solid var(--line);padding:18px max(20px,calc((100vw - 1
 .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--muted);margin-right:7px;vertical-align:1px}
 .dot.ok{background:var(--ok)}.dot.bad{background:var(--red)}.dot.warn{background:var(--warn)}
 main{max-width:1300px;margin:auto;padding:22px 20px}
-.tiles{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr;gap:12px}
+.health{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--muted);border-radius:10px;padding:14px 18px;margin-bottom:12px}
+.health.ok{border-left-color:var(--ok)}.health.warn{border-left-color:var(--warn)}.health.bad{border-left-color:var(--red)}
+.health .h1{font-size:24px;font-weight:750}
+.health.ok .h1{color:var(--ok)}.health.warn .h1{color:var(--warn)}.health.bad .h1{color:var(--red)}
+.health .h2{font-size:15px;color:var(--muted)}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:14px;text-decoration:underline;cursor:pointer}
+.linkbtn:hover{color:var(--text);filter:none}
+.tiles{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px}
 .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
 .tile .k{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
 .tile .v{font-size:28px;font-weight:700;margin-top:6px;white-space:nowrap}
@@ -61,11 +68,10 @@ td.name{font-weight:650}
 .stale .tiles,.stale .tablewrap{opacity:.5}
 footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;padding:16px 10px;border-top:1px solid var(--line)}
 @media(max-width:900px){.tiles{grid-template-columns:1fr 1fr}.tile.wide{grid-column:1/-1}}
-@media(max-width:420px){.tile .v{font-size:22px}button{flex:1 1 40%}.spacer{display:none}}
+@media(max-width:420px){.health .h1{font-size:20px}.tile .v{font-size:22px}button{flex:1 1 40%}.spacer{display:none}}
 /* Phones: each receiver becomes a compact card so nothing scrolls sideways */
 @media(max-width:700px){
   main{padding:16px 12px}
-  .tiles .tile:last-child{grid-column:1/-1}
   header{padding:14px 12px}
   .tablewrap{background:none;border:0;overflow:visible}
   table,tbody{display:block;width:100%}
@@ -88,11 +94,11 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
 </header>
 
 <main id="main">
+  <div class="health" id="health"><span class="h1" id="h1">Connecting…</span><span class="h2" id="h2"></span></div>
   <div class="tiles">
-    <div class="tile wide"><div class="k">Last alert</div><div class="v num" id="la">—</div><div class="d" id="la_d">No alerts in the log yet</div></div>
-    <div class="tile"><div class="k">Notification latency</div><div class="v num" id="nl">—</div><div class="d" id="nl_d">median time until all receivers ACK</div></div>
-    <div class="tile"><div class="k">Delivery</div><div class="v num" id="dl">—</div><div class="d" id="dl_d">all receivers, all alerts</div></div>
-    <div class="tile"><div class="k">Cloud delay</div><div class="v num" id="cd">—</div><div class="d" id="cd_d"></div></div>
+    <div class="tile wide"><div class="k">Last alert</div><div class="v num" id="la">—</div><div class="d" id="la_d">No alerts yet</div></div>
+    <div class="tile"><div class="k">Notification latency</div><div class="v num" id="nl">—</div><div class="d" id="nl_d">median, until all receivers ACK</div></div>
+    <div class="tile"><div class="k">Delivery</div><div class="v num" id="dl">—</div><div class="d" id="dl_d">connected receivers</div></div>
   </div>
 
   <div class="actions">
@@ -288,45 +294,71 @@ function uptimeText(s){ const d = Math.floor(s/86400), h = Math.floor(s%86400/36
 function clockTime(t){ return t > 1.7e9 ? new Date(t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ''; }
 
 // ---------- Rendering ----------
+let showDetails = false;
+// One-line answer to "are the receivers getting alerts?", based on the most recent alert.
+function renderHealth(online){
+  const box = $('health');
+  let cls = '', h1 = '', h2 = '';
+  if (!state) { h1 = cloudState === 'connected' ? 'Waiting for the transmitter…' : 'Connecting…'; }
+  else {
+    // "Connected" = has acknowledged at least one alert since the last reset.
+    const conn = state.receivers.filter(r => r.acked > 0);
+    const ok = conn.filter(r => !r.waiting && r.success), down = conn.filter(r => !r.waiting && !r.success);
+    if (state.receivers.some(r => r.waiting)) { cls = 'warn'; h1 = 'Alert in progress…'; }
+    else if (!state.receivers.some(r => r.sent > 0)) { h1 = 'No alerts sent yet'; h2 = 'Receivers appear here once they acknowledge an alert'; }
+    else if (!conn.length) { cls = 'bad'; h1 = 'No receivers connected'; h2 = 'None has acknowledged an alert yet'; }
+    else {
+      const n = conn.length;
+      h1 = ok.length === n ? `All ${n} receiver${n === 1 ? '' : 's'} responding` : `${ok.length} of ${n} receivers responding`;
+      cls = ok.length === n ? 'ok' : ok.length === 0 ? 'bad' : 'warn';
+      h2 = down.length ? 'Stopped responding: ' + down.map(r => r.name).join(', ') : 'on the last alert';
+    }
+    if (!online) { cls = 'bad'; h2 = (h2 ? h2 + ' · ' : '') + 'transmitter offline, showing last known state'; }
+  }
+  box.className = 'health ' + cls; $('h1').textContent = h1; $('h2').textContent = h2;
+}
 function render(){
   const online = isOnline(), cloudOk = cloudState === 'connected';
   $('main').classList.toggle('stale', !!state && !online);
-  const parts = [];
   const devLabel = !cloudOk ? (cloudState === 'denied' ? 'Viewer login rejected — check CONFIG' : cloudState === 'offline' ? 'Cloud offline' : 'Connecting…')
                  : !state ? 'Waiting for transmitter…' : online ? 'Transmitter online' : 'Transmitter offline';
   const dotCls = !cloudOk ? (cloudState === 'connecting' ? 'warn' : 'bad') : !state ? 'warn' : online ? 'ok' : 'bad';
-  parts.push(`<span><span class="dot ${dotCls}"></span><b>${devLabel}</b></span>`);
-  if (state) {
-    if (state.rssi) parts.push(`<span><b class="num">${state.rssi}</b> dBm</span>`);
+  const parts = [`<span><span class="dot ${dotCls}"></span><b>${devLabel}</b></span>`];
+  if (state && online && state.rssi) parts.push(`<span>signal <b class="num">${state.rssi}</b> dBm</span>`);
+  if (showDetails && state) {
     parts.push(`<span>up <b class="num">${uptimeText(state.uptime)}</b></span>`);
     if (state.ntp != null) parts.push(`<span>clock <b>${state.ntp ? 'synced' : 'not synced'}</b></span>`);
     if (state.fw) parts.push(`<span>fw <b class="num">${esc(state.fw)}</b></span>`);
+    if (cloudDelay != null && online) parts.push(`<span>cloud delay <b class="num">${Math.round(cloudDelay)} ms</b></span>`);
+    if (lastSeenMs) parts.push(`<span>updated <b>${ago((Date.now()-lastSeenMs)/1000)}</b></span>`);
   }
   if (operator && cloudOk) parts.push(`<span>signed in as <b>${esc(operator.user)}</b></span>`);
+  if (state) parts.push(`<button class="linkbtn" onclick="showDetails=!showDetails;render()">${showDetails ? 'Hide details' : 'Details'}</button>`);
   $('sys').innerHTML = parts.join('');
+  renderHealth(online);
   if (!state) return;
 
   const L = logStats(), recs = L.recs, rx = state.receivers;
-  // Last alert
+  const conn = rx.filter(r => r.acked > 0);                      // receivers that have connected
+  // Last alert: ACKs out of connected receivers
   if (recs.length) {
-    const f = recs[recs.length-1], v = f.slice(6), acks = v.filter(x => x !== '').map(Number);
-    $('la').innerHTML = `#${esc(f[1])} · ${acks.length}/${v.length} ACK`;
-    $('la_d').textContent = [clockTime(Number(f[2])), ago(recordAge(f)), acks.length ? `slowest ${ms(Math.max(...acks))} ms` : 'no ACKs'].filter(Boolean).join(' · ')
-                            + ` · ${Math.min(state.logged, state.logMax)} alerts logged`;
-  } else { $('la').textContent = state.total ? `${state.total} total` : '—'; $('la_d').textContent = 'No alerts in the log yet'; }
+    const f = recs[recs.length-1], acks = f.slice(6).filter(x => x !== '').length;
+    $('la').innerHTML = `#${esc(f[1])} · ${acks}/${Math.max(conn.length, acks)} ACK`;
+    $('la_d').textContent = `${ago(recordAge(f))}`;
+  } else { $('la').textContent = '—'; $('la_d').textContent = state.total ? `${state.total} alerts before the log started` : 'No alerts yet'; }
   // Notification latency
   $('nl').innerHTML = L.slowestMedian != null ? `${ms(L.slowestMedian)} <span class="muted" style="font-size:15px">ms</span>` : '—';
-  $('nl_d').textContent = 'median time until all receivers ACK';
   // Delivery
-  const sent = rx.reduce((a,r)=>a+r.sent,0), acked = rx.reduce((a,r)=>a+r.acked,0);
+  const sent = conn.reduce((a,r)=>a+r.sent,0), acked = conn.reduce((a,r)=>a+r.acked,0);
   $('dl').innerHTML = sent ? `${(100*acked/sent).toFixed(1)}<span class="muted" style="font-size:15px">%</span>` : '—';
-  $('dl_d').textContent = sent ? `${acked} / ${sent} ACKs · ${state.total} alerts` : 'no alerts yet';
-  // Cloud delay
-  $('cd').innerHTML = cloudDelay != null && online ? `${Math.round(cloudDelay)} <span class="muted" style="font-size:15px">ms</span>` : '—';
-  $('cd_d').textContent = lastSeenMs ? `updated ${ago((Date.now()-lastSeenMs)/1000)}` : '';
+  $('dl_d').textContent = sent ? `${acked} of ${sent} ACKs` : 'no alerts yet';
 
   // Receiver table
-  $('rows').innerHTML = rx.map((r, i) => {
+  // Problems first: no ACK, then waiting, then not tested, then OK (original order within each group)
+  const rank = r => r.waiting ? 1 : r.sent === 0 ? 2 : r.success ? 3 : 0;
+  const order = rx.map((r, i) => i).filter(i => rx[i].acked > 0)          // only receivers that have connected
+                  .sort((a, b) => rank(rx[a]) - rank(rx[b]) || a - b);
+  $('rows').innerHTML = order.map(i => { const r = rx[i];
     const n = r.acked > 0;
     const status = r.waiting ? ['WAITING','warn'] : r.sent === 0 ? ['NOT TESTED','idle'] : r.success ? ['ACK','ok'] : ['NO ACK','bad'];
     const dlv = r.sent ? r.delivery : null;
@@ -337,7 +369,7 @@ function render(){
       <td class="num" data-label="Last RTT">${n ? ms(r.last,2) : '—'}</td><td class="num" data-label="Avg RTT">${n ? ms(r.avg) : '—'}</td>
       <td class="num" data-label="Delivery">${dlv == null ? '—' : dlv.toFixed(1) + '%'}<span class="bar"><i style="width:${dlv||0}%;background:${dlv>=95?'var(--ok)':dlv>=80?'var(--warn)':'var(--red)'}"></i></span></td>
       <td class="num" data-label="Sent / ACK">${r.sent} / ${r.acked}</td></tr>`;
-  }).join('');
+  }).join('') || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Receivers appear here once they acknowledge an alert</td></tr>`;
 }
 setInterval(render, 1000);
 
