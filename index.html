@@ -65,6 +65,9 @@ td.name{font-weight:650}
 .st.ok{color:var(--ok)}.st.bad{color:var(--red)}.st.warn{color:var(--warn)}.st.idle{color:var(--muted)}
 .bar{display:inline-block;width:46px;height:6px;border-radius:3px;background:#263040;margin-left:8px;vertical-align:2px;overflow:hidden}
 .bar i{display:block;height:100%;background:var(--ok)}
+.macsub{display:none}
+.batticon{vertical-align:middle;color:var(--muted)}
+.battval{display:inline-flex;align-items:center;gap:6px}
 .legend{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.6}
 .stale .tiles,.stale .tablewrap{opacity:.5}
 footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;padding:16px 10px;border-top:1px solid var(--line)}
@@ -79,9 +82,11 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
   thead{display:none}
   tr{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px}
   td{display:block;padding:0;border:0;text-align:left!important;white-space:nowrap;font-size:16px}
-  td.name{grid-column:1/3;font-size:17px}
-  td.mac{grid-column:3;align-self:center;font-size:14px}
-  td.stc{grid-column:4;align-self:center;text-align:right!important}
+  td.name{grid-column:1/3;grid-row:1;font-size:17px}
+  .macsub{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-top:2px}
+  td.mac{display:none}
+  td.batt{grid-column:3;grid-row:1;align-self:center}
+  td.stc{grid-column:4;grid-row:1;align-self:center;text-align:right!important}
   td[data-label]::before{content:attr(data-label);display:block;font:600 11px system-ui,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
   td[colspan]{grid-column:1/-1;text-align:center!important;white-space:normal}
   .bar{display:block;width:100%;max-width:70px;margin:4px 0 0}
@@ -123,10 +128,10 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
   <div class="tablewrap">
     <table>
       <thead><tr>
-        <th>Receiver</th><th>MAC</th><th>Status</th>
+        <th>Receiver</th><th>MAC</th><th>Status</th><th><svg class="batticon" viewBox="0 0 28 14" width="26" height="13" role="img" aria-label="Battery"><title>Battery</title><rect x="1" y="1" width="23" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><rect x="25" y="4.5" width="2.2" height="5" rx="1" fill="currentColor"/></svg></th>
         <th>Last RTT</th><th>Avg RTT</th><th>Delivery</th><th>Sent / ACK</th>
       </tr></thead>
-      <tbody id="rows"><tr><td colspan="7" class="muted" style="text-align:center;padding:28px">Waiting for data from the transmitter…</td></tr></tbody>
+      <tbody id="rows"><tr><td colspan="8" class="muted" style="text-align:center;padding:28px">Waiting for data from the transmitter…</td></tr></tbody>
     </table>
   </div>
 
@@ -294,6 +299,18 @@ function ago(s){ if (s == null) return '—'; s = Math.max(0, s); if (s < 60) re
 function uptimeText(s){ const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60); return (d ? d+'d ' : '') + (d||h ? h+'h ' : '') + m+'m'; }
 function clockTime(t){ return t > 1.7e9 ? new Date(t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ''; }
 
+// Battery: receivers will report r.battery (0–100 %). Until they do, show "—".
+function battCell(b){
+  if (b == null || isNaN(b)) return '—';
+  const pct = Math.max(0, Math.min(100, Math.round(b)));
+  const col = pct >= 30 ? 'var(--ok)' : pct >= 15 ? 'var(--warn)' : 'var(--red)';
+  const w = Math.max(1.5, 19 * pct / 100);                       // fill inside the battery outline
+  return `<span class="battval"><svg viewBox="0 0 28 14" width="26" height="13" aria-hidden="true">`
+       + `<rect x="1" y="1" width="23" height="12" rx="2.5" fill="none" stroke="var(--muted)" stroke-width="1.6"/>`
+       + `<rect x="25" y="4.5" width="2.2" height="5" rx="1" fill="var(--muted)"/>`
+       + `<rect x="3" y="3" width="${w.toFixed(1)}" height="8" rx="1.2" fill="${col}"/></svg>${pct}%</span>`;
+}
+
 // ---------- Rendering ----------
 let showDetails = false;
 // One-line answer to "are the receivers getting alerts?", based on the most recent alert.
@@ -364,13 +381,14 @@ function render(){
     const status = r.waiting ? ['WAITING','warn'] : r.sent === 0 ? ['NOT TESTED','idle'] : r.success ? ['ACK','ok'] : ['NO ACK','bad'];
     const dlv = r.sent ? r.delivery : null;
     return `<tr>
-      <td class="name">${esc(r.name)}</td>
+      <td class="name">${esc(r.name)}<span class="macsub num">${esc(shortMac(r.mac))}</span></td>
       <td class="num muted mac">${esc(shortMac(r.mac))}</td>
       <td class="stc"><span class="st ${status[1]}">● ${status[0]}</span></td>
+      <td class="num batt">${battCell(r.battery)}</td>
       <td class="num" data-label="Last RTT">${n ? ms(r.last,2) : '—'}</td><td class="num" data-label="Avg RTT">${n ? ms(r.avg) : '—'}</td>
       <td class="num" data-label="Delivery">${dlv == null ? '—' : dlv.toFixed(1) + '%'}<span class="bar"><i style="width:${dlv||0}%;background:${dlv>=95?'var(--ok)':dlv>=80?'var(--warn)':'var(--red)'}"></i></span></td>
       <td class="num" data-label="Sent / ACK">${r.sent} / ${r.acked}</td></tr>`;
-  }).join('') || `<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">No receivers connected yet</td></tr>`;
+  }).join('') || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No receivers connected yet</td></tr>`;
 }
 setInterval(render, 1000);
 
@@ -401,8 +419,8 @@ function downloadLogCSV(){
 function downloadCSV(){
   if (!state) return say('No data yet.','warn');
   const L = logStats();
-  const head = 'receiver,mac,alerts_triggered,sent,acked,failed,delivery_percent,last_rtt_ms,average_rtt_ms,p95_rtt_ms,jitter_ms,min_rtt_ms,max_rtt_ms,ack_timeout_ms';
-  const rows = state.receivers.map((r,i) => { const p = L.per[i] || {}; return [r.name, shortMac(r.mac), state.total, r.sent, r.acked, r.failed, r.delivery.toFixed(2),
+  const head = 'receiver,mac,battery_percent,alerts_triggered,sent,acked,failed,delivery_percent,last_rtt_ms,average_rtt_ms,p95_rtt_ms,jitter_ms,min_rtt_ms,max_rtt_ms,ack_timeout_ms';
+  const rows = state.receivers.map((r,i) => { const p = L.per[i] || {}; return [r.name, shortMac(r.mac), r.battery == null ? '' : Math.round(r.battery), state.total, r.sent, r.acked, r.failed, r.delivery.toFixed(2),
     r.last.toFixed(3), r.avg.toFixed(3), p.p95 == null ? '' : p.p95.toFixed(2), p.jitter == null ? '' : p.jitter.toFixed(3),
     r.min.toFixed(3), r.max.toFixed(3), state.timeout].join(','); });
   saveCSV([head, ...rows].join('\r\n') + '\r\n', 'BearAlert_Receiver_Summary');
