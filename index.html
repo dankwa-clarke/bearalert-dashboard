@@ -311,6 +311,13 @@ function battCell(b){
        + `<rect x="3" y="3" width="${w.toFixed(1)}" height="8" rx="1.2" fill="${col}"/></svg>${pct}%</span>`;
 }
 
+// ---------- Receiver presence ----------
+// Transmitter fw 2.1+ reports r.online from 2-second check-ins (offline ~8 s after a receiver
+// dies). Older firmware: fall back to "ACKed the most recent alert".
+const hasPresence = () => state && state.receivers.some(r => r.online !== undefined);
+const isUp = r => hasPresence() ? !!r.online : (r.acked > 0 && (r.success || r.waiting));
+const everSeen = r => hasPresence() ? r.seen >= 0 : r.acked > 0;
+
 // ---------- Rendering ----------
 let showDetails = false;
 // One-line answer to "are the receivers getting alerts?", based on the most recent alert.
@@ -319,18 +326,19 @@ function renderHealth(online){
   let cls = '', h1 = '', h2 = '';
   if (!state) { h1 = cloudState === 'connected' ? 'Waiting for the transmitter…' : 'Connecting…'; }
   else {
-    // "Connected" = has acknowledged at least one alert since the last reset.
-    const conn = state.receivers.filter(r => r.acked > 0);
-    const ok = conn.filter(r => !r.waiting && r.success), down = conn.filter(r => !r.waiting && !r.success);
+    const rx = state.receivers, up = rx.filter(isUp), off = rx.filter(r => everSeen(r) && !isUp(r));
+    const missed = up.filter(r => r.sent > 0 && !r.waiting && !r.success);
     if (!online) { cls = 'bad'; h1 = 'Transmitter offline'; h2 = lastSeenMs ? `last seen ${ago((Date.now() - lastSeenMs) / 1000)}` : ''; }
-    else if (state.receivers.some(r => r.waiting)) { cls = 'warn'; h1 = 'Alert in progress…'; }
-    else if (!state.receivers.some(r => r.sent > 0)) { h1 = 'No alerts sent yet'; }
-    else if (!conn.length) { cls = 'bad'; h1 = 'No receivers connected'; }
+    else if (rx.some(r => r.waiting)) { cls = 'warn'; h1 = 'Alert in progress…'; }
+    else if (!up.length) { cls = off.length ? 'bad' : ''; h1 = off.length ? 'No receivers online' : 'Waiting for receivers…'; h2 = off.length ? 'Offline: ' + off.map(r => r.name).join(', ') : ''; }
     else {
-      const n = conn.length;
-      h1 = ok.length === n ? `All ${n} receiver${n === 1 ? '' : 's'} responding` : `${ok.length} of ${n} receivers responding`;
-      cls = ok.length === n ? 'ok' : ok.length === 0 ? 'bad' : 'warn';
-      h2 = down.length ? 'Not responding: ' + down.map(r => r.name).join(', ') : '';
+      const n = up.length;
+      h1 = `${n} receiver${n === 1 ? '' : 's'} online`;
+      const notes = [];
+      if (off.length) notes.push('Offline: ' + off.map(r => r.name).join(', '));
+      if (missed.length) notes.push('Missed last alert: ' + missed.map(r => r.name).join(', '));
+      cls = notes.length ? 'warn' : 'ok';
+      h2 = notes.join(' · ');
     }
   }
   box.className = 'health ' + cls; $('h1').textContent = h1; $('h2').textContent = h2;
@@ -357,11 +365,12 @@ function render(){
   if (!state) return;
 
   const L = logStats(), recs = L.recs, rx = state.receivers;
-  const conn = rx.filter(r => r.acked > 0);                      // receivers that have connected
+  const conn = rx.filter(r => r.acked > 0);                      // receivers that have ever ACKed
+  const upCount = rx.filter(isUp).length;
   // Last alert: ACKs out of connected receivers
   if (recs.length) {
     const f = recs[recs.length-1], acks = f.slice(6).filter(x => x !== '').length;
-    $('la').innerHTML = acks || conn.length ? `#${esc(f[1])} · ${acks}/${Math.max(conn.length, acks)} ACK` : `#${esc(f[1])} · no ACK`;
+    $('la').innerHTML = acks || conn.length ? `#${esc(f[1])} · ${acks}/${Math.max(upCount, acks)} ACK` : `#${esc(f[1])} · no ACK`;
     $('la_d').textContent = `${ago(recordAge(f))}`;
   } else { $('la').textContent = '—'; $('la_d').textContent = ''; }
   // Notification latency
@@ -374,11 +383,11 @@ function render(){
   // Receiver table
   // Problems first: no ACK, then waiting, then not tested, then OK (original order within each group)
   const rank = r => r.waiting ? 1 : r.sent === 0 ? 2 : r.success ? 3 : 0;
-  const order = rx.map((r, i) => i).filter(i => rx[i].acked > 0)          // only receivers that have connected
+  const order = rx.map((r, i) => i).filter(i => isUp(rx[i]))       // offline receivers are hidden
                   .sort((a, b) => rank(rx[a]) - rank(rx[b]) || a - b);
   $('rows').innerHTML = order.map(i => { const r = rx[i];
     const n = r.acked > 0;
-    const status = r.waiting ? ['WAITING','warn'] : r.sent === 0 ? ['NOT TESTED','idle'] : r.success ? ['ACK','ok'] : ['NO ACK','bad'];
+    const status = r.waiting ? ['WAITING','warn'] : r.success ? ['ACK','ok'] : r.sent > 0 && r.acked > 0 ? ['NO ACK','bad'] : ['ONLINE','ok'];
     const dlv = r.sent ? r.delivery : null;
     return `<tr>
       <td class="name">${esc(r.name)}<span class="macsub num">${esc(shortMac(r.mac))}</span></td>
@@ -388,7 +397,7 @@ function render(){
       <td class="num" data-label="Last RTT">${n ? ms(r.last,2) : '—'}</td><td class="num" data-label="Avg RTT">${n ? ms(r.avg) : '—'}</td>
       <td class="num" data-label="Delivery">${dlv == null ? '—' : dlv.toFixed(1) + '%'}<span class="bar"><i style="width:${dlv||0}%;background:${dlv>=95?'var(--ok)':dlv>=80?'var(--warn)':'var(--red)'}"></i></span></td>
       <td class="num" data-label="Sent / ACK">${r.sent} / ${r.acked}</td></tr>`;
-  }).join('') || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No receivers connected yet</td></tr>`;
+  }).join('') || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No receivers online</td></tr>`;
 }
 setInterval(render, 1000);
 
