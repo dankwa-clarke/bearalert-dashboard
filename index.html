@@ -15,6 +15,11 @@ const CONFIG = {
   // Read-only viewer login (Subscribe Only permission). It is visible in the page source.
   viewerUser: "bearalert-viewer",
   viewerPass: "linda1324@!L",
+  // LiDAR 3D view: a second login with "Publish Only" on bearalert/tx1/lidar/req. It only lets the
+  // page tell the Jetson that someone is watching, so it starts streaming.
+  lidarReqUser: "bearalert-lidar-req",
+  lidarReqPass: "lidar-req-password",
+  lidarAutoStopMin: 10,           // live view stops by itself after this many minutes (saves data)
 };
 // ================================================
 </script>
@@ -70,6 +75,27 @@ td.name{font-weight:650}
 .battval{display:inline-flex;align-items:center;gap:6px}
 .legend{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.6}
 .stale .tiles,.stale .tablewrap{opacity:.5}
+.section-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:26px 0 10px;flex-wrap:wrap}
+.section-h h2{font-size:18px;margin:0}
+.section-h .info{font-size:14px;color:var(--muted)}
+.devpanel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+.devgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 18px}
+.devgrid .k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.devgrid .v{font-size:17px;font-weight:600;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.devgrid .v.ok{color:var(--ok)}.devgrid .v.warn{color:var(--warn)}.devgrid .v.bad{color:var(--red)}
+.devctl{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);flex-wrap:wrap}
+.devctl .lbl{font-size:14px;color:var(--muted);margin-right:4px}
+.devctl button{padding:8px 14px;font-size:14px}
+.devctl .on{background:var(--accent);color:#111827;border-color:var(--accent)}
+.lidar{position:relative;height:min(62vh,560px);min-height:320px;background:#05080c;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.lidar canvas{display:block;width:100%;height:100%}
+.lidar .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);text-align:center;padding:20px;background:rgba(5,8,12,.72)}
+.lidar .overlay[hidden]{display:none}
+.lidar .overlay button{flex:0 0 auto}
+.lidar .hud{position:absolute;left:12px;bottom:10px;font-size:13px;color:var(--muted);pointer-events:none}
+.lidar-tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+.lidar-tools button{padding:8px 13px;font-size:14px}
+.lidar-tools .on{background:var(--accent);color:#111827;border-color:var(--accent)}
 footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;padding:16px 10px;border-top:1px solid var(--line)}
 @media(max-width:900px){.tiles{grid-template-columns:1fr 1fr}.tile.wide{grid-column:1/-1}}
 @media(max-width:420px){.health .h1{font-size:20px}.tile .v{font-size:22px}button{flex:1 1 40%}.linkbtn{flex:0 0 auto}.spacer{display:none}}
@@ -135,12 +161,42 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
     </table>
   </div>
 
+  <div class="section-h"><h2>LiDAR</h2><span class="info" id="lidarInfo">Jetson status unknown</span></div>
+  <div class="devpanel">
+    <div class="devgrid" id="devGrid"><div><div class="k">LiDAR</div><div class="v muted">Waiting for the Jetson…</div></div></div>
+    <div class="devctl" id="devCtl" style="display:none">
+      <span class="lbl">Work mode</span>
+      <button class="secondary" id="modeNormal" onclick="lidarMode('lidar_normal')">Normal</button>
+      <button class="secondary" id="modeStandby" onclick="lidarMode('lidar_standby')">Standby</button>
+      <span class="muted" style="font-size:13px">Standby stops the laser and the point cloud until switched back.</span>
+    </div>
+  </div>
+  <div class="lidar" id="lidarBox">
+    <canvas id="lidarCanvas"></canvas>
+    <div class="hud num" id="lidarHud"></div>
+    <div class="overlay" id="lidarOverlay">
+      <div id="lidarOverlayText">The live 3D view streams from the LiDAR only while it is open, to save data.</div>
+      <button onclick="lidarStart()">Start live 3D view</button>
+    </div>
+  </div>
+  <div class="lidar-tools" id="lidarTools" style="display:none">
+    <button class="secondary on" id="colHeight" onclick="lidarColor('height')">Colour by height</button>
+    <button class="secondary" id="colInt" onclick="lidarColor('intensity')">Colour by intensity</button>
+    <button class="secondary" onclick="window.BearLidar && BearLidar.resetView()">Reset view</button>
+    <button class="secondary" onclick="window.BearLidar && BearLidar.topView()">Top view</button>
+    <span class="spacer"></span>
+    <button class="secondary" onclick="lidarStop()">Stop live view</button>
+  </div>
+
   <footer>SABA Lab · BearAlert</footer>
 </main>
 
 <script>
 const T = { live:`bearalert/${CONFIG.device}/live`, status:`bearalert/${CONFIG.device}/status`,
-            cmd:`bearalert/${CONFIG.device}/cmd`, hist:`bearalert/${CONFIG.device}/history` };
+            cmd:`bearalert/${CONFIG.device}/cmd`, hist:`bearalert/${CONFIG.device}/history`,
+            lframe:`bearalert/${CONFIG.device}/lidar/frame`, lstatus:`bearalert/${CONFIG.device}/lidar/status`,
+            lreq:`bearalert/${CONFIG.device}/lidar/req`, ldevice:`bearalert/${CONFIG.device}/lidar/device`,
+            lcmd:`bearalert/${CONFIG.device}/lidar/cmd` };
 const OFFLINE_AFTER_S = 6;          // transmitter heartbeat is every 1 s
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -160,7 +216,12 @@ function connect(user, pass, onAuthFail){
   client = mqtt.connect(`wss://${CONFIG.host}:${CONFIG.port}${CONFIG.path}`, {
     username:user, password:pass, clientId:'bearweb-'+Math.random().toString(16).slice(2,10),
     clean:true, reconnectPeriod:4000, connectTimeout:10000, protocolVersion:4 });
-  client.on('connect', () => { cloudState = 'connected'; client.subscribe([T.live, T.status, T.hist + '/+'], {qos:1}); render(); });
+  client.on('connect', () => {
+    cloudState = 'connected';
+    client.subscribe([T.live, T.status, T.hist + '/+', T.lstatus, T.ldevice], {qos:1});
+    if (lidar.on) client.subscribe(T.lframe, {qos:0});
+    render();
+  });
   client.on('reconnect', () => { cloudState = 'connecting'; render(); });
   client.on('offline',  () => { cloudState = 'offline'; render(); });
   client.on('error', err => { if (err && (err.code === 4 || err.code === 5)) { client.end(true); onAuthFail && onAuthFail(); } });
@@ -184,7 +245,10 @@ function isOnline(){
 }
 
 function onMessage(topic, payload, packet){
+  if (topic === T.lframe) { lidarFrame(payload); return; }
   const text = payload.toString();
+  if (topic === T.ldevice) { try { lidar.device = JSON.parse(text); lidar.deviceAt = Date.now(); } catch(e) {} lidarCheckPending(); lidarRender(); return; }
+  if (topic === T.lstatus) { try { lidar.status = JSON.parse(text); lidar.statusAt = Date.now(); } catch(e) {} lidarRender(); return; }
   if (topic.startsWith(T.hist + '/')) {
     const i = topic.slice(T.hist.length + 1);
     if (text) logChunks[i] = text; else delete logChunks[i];
@@ -216,6 +280,7 @@ function updateOperatorUI(){
   $('opControls').style.display = operator ? 'contents' : 'none';
   $('loginBtn').style.display = operator ? 'none' : '';
   $('logoutBtn').style.display = operator ? '' : 'none';
+  if (typeof renderDevice === 'function') renderDevice();
 }
 function login(ev){
   ev.preventDefault();
@@ -301,7 +366,10 @@ function clockTime(t){ return t > 1.7e9 ? new Date(t*1000).toLocaleTimeString([]
 
 // Battery: receivers will report r.battery (0–100 %). Until they do, show "—".
 function battCell(b){
-  if (b == null || isNaN(b)) return '—';
+  if (b == null || isNaN(b))                                      // not measured yet: empty outline
+    return `<span class="battval" title="Battery not measured"><svg viewBox="0 0 28 14" width="26" height="13" aria-hidden="true">`
+         + `<rect x="1" y="1" width="23" height="12" rx="2.5" fill="none" stroke="var(--muted)" stroke-width="1.6"/>`
+         + `<rect x="25" y="4.5" width="2.2" height="5" rx="1" fill="var(--muted)"/></svg><span class="muted">—</span></span>`;
   const pct = Math.max(0, Math.min(100, Math.round(b)));
   const col = pct >= 30 ? 'var(--ok)' : pct >= 15 ? 'var(--warn)' : 'var(--red)';
   const w = Math.max(1.5, 19 * pct / 100);                       // fill inside the battery outline
@@ -401,6 +469,118 @@ function render(){
 }
 setInterval(render, 1000);
 
+// ---------- LiDAR 3D view ----------
+const lidar = { device:null, deviceAt:0, pending:null, on:false, req:null, ping:null, stopTimer:null, status:null, statusAt:0, frames:0, bytes:0,
+                lastFrameTs:0, lastCount:0, lastSize:0, color:'height' };
+function jetsonState(){
+  if (!lidar.status) return 'unknown';
+  if (lidar.status.state === 'offline') return 'offline';
+  return (Date.now() - (lidar.status.ts || lidar.statusAt)) / 1000 < 30 ? lidar.status.state : 'offline';
+}
+function lidarStart(){
+  if (!client || !client.connected) return say('Not connected to the cloud yet.','bad');
+  lidar.on = true; lidar.frames = 0; lidar.bytes = 0;
+  client.subscribe(T.lframe, {qos:0});
+  // Second, publish-only connection that tells the Jetson someone is watching.
+  lidar.req = mqtt.connect(`wss://${CONFIG.host}:${CONFIG.port}${CONFIG.path}`, {
+    username:CONFIG.lidarReqUser, password:CONFIG.lidarReqPass, clientId:'bearweb-lidar-'+Math.random().toString(16).slice(2,10),
+    clean:true, reconnectPeriod:5000, connectTimeout:10000, protocolVersion:4 });
+  lidar.req.on('error', err => { if (err && (err.code === 4 || err.code === 5)) { lidarStop(); say('The LiDAR request login was rejected. Check lidarReqUser and lidarReqPass in the page settings.','bad'); } });
+  const ping = () => { if (!document.hidden && lidar.req && lidar.req.connected) lidar.req.publish(T.lreq, '1', {qos:0}); };
+  lidar.req.on('connect', ping);
+  lidar.ping = setInterval(ping, 4000);
+  lidar.stopTimer = setTimeout(() => { lidarStop(); $('lidarOverlayText').textContent = `Live view stopped after ${CONFIG.lidarAutoStopMin} minutes to save data.`; },
+                               CONFIG.lidarAutoStopMin * 60000);
+  $('lidarOverlayText').textContent = 'Waiting for the first frame from the LiDAR…';
+  $('lidarTools').style.display = 'flex';
+  window.BearLidar && BearLidar.active(true);
+  lidarRender();
+}
+function lidarStop(){
+  lidar.on = false;
+  if (client && client.connected) client.unsubscribe(T.lframe);
+  clearInterval(lidar.ping); clearTimeout(lidar.stopTimer);
+  if (lidar.req) { lidar.req.end(true); lidar.req = null; }
+  $('lidarOverlay').hidden = false;
+  $('lidarOverlayText').textContent = 'The live 3D view streams from the LiDAR only while it is open, to save data.';
+  $('lidarTools').style.display = 'none';
+  window.BearLidar && BearLidar.active(false);
+  lidarRender();
+}
+async function lidarFrame(payload){
+  if (!lidar.on || !window.BearLidar) return;
+  const bytes = payload instanceof Uint8Array ? payload : new Uint8Array(payload);
+  try {
+    const f = await BearLidar.update(bytes);
+    lidar.frames++; lidar.bytes += bytes.length; lidar.lastFrameTs = f.ts; lidar.lastCount = f.count; lidar.lastSize = bytes.length;
+    $('lidarOverlay').hidden = true;
+  } catch(e) { console.warn('LiDAR frame error', e); }
+  lidarRender();
+}
+// Normal / Standby (signed with the operator password, verified on the Jetson)
+async function lidarMode(cmd){
+  if (!operator || !client || !client.connected) return say('Sign in as operator to change the LiDAR mode.','warn');
+  const d = lidar.device;
+  if (!d || !d.reachable || (Date.now() - d.ts) / 1000 > 20) return say('The LiDAR is not reporting, so the mode can\'t be changed.','bad');
+  if (lidar.pending) return say('Waiting for the previous LiDAR command…','warn');
+  const nonce = d.nonce, sig = await hmacHex(operator.pass, `${cmd}|${nonce}`);
+  lidar.pending = { nonce, cmd, t0: performance.now(),
+    timer: setTimeout(() => { lidar.pending = null; say('No response from the Jetson (10 s).','bad'); }, 10000) };
+  say(cmd === 'lidar_normal' ? 'Switching the LiDAR to normal…' : 'Switching the LiDAR to standby…','warn');
+  client.publish(T.lcmd, `${cmd}|${nonce}|${sig}`, {qos:1, retain:false});
+}
+const LIDAR_RESULTS = { done:['LiDAR mode changed','ok'], failed:['The LiDAR did not accept the mode change','bad'],
+  denied:['Rejected: the Jetson did not accept the operator password (operator_key)','bad'], stale:['The panel was out of date. Try again','warn'],
+  disabled:['Mode control is off on the Jetson (operator_key not set)','warn'], busy:['The Jetson is busy. Try again','warn'], unknown:['Unknown command','bad'] };
+function lidarCheckPending(){
+  const p = lidar.pending, d = lidar.device;
+  if (!p || !d || !d.cmd || d.cmd.nonce !== p.nonce) return;
+  clearTimeout(p.timer); lidar.pending = null;
+  const [t, c] = LIDAR_RESULTS[d.cmd.result] || [`Result: ${d.cmd.result}`, ''];
+  say(`${t}. Round trip ${Math.round(performance.now() - p.t0)} ms`, c);
+}
+function devCell(k, v, cls=''){ return `<div><div class="k">${k}</div><div class="v ${cls}" title="${esc(v)}">${esc(v)}</div></div>`; }
+function renderDevice(){
+  const d = lidar.device, fresh = d && (Date.now() - d.ts) / 1000 < 20;
+  let html;
+  if (!d) html = devCell('LiDAR', 'Waiting for the Jetson…', 'muted');
+  else if (!fresh) html = devCell('LiDAR', `No status for ${ago((Date.now() - d.ts)/1000).replace(' ago','')}`, 'bad') + devCell('Updated', ago((Date.now() - d.ts)/1000));
+  else if (!d.reachable) html = devCell('LiDAR', 'Not responding', 'bad') + devCell('IP', d.lidar_ip) + devCell('Updated', ago((Date.now() - d.ts)/1000));
+  else {
+    const st = d.state || '—', stCls = st === 'Sampling' ? 'ok' : st === 'Error' ? 'bad' : 'warn';
+    const issues = d.diag ? Object.entries(d.diag).filter(([,v]) => v !== 'normal') : [];
+    const worst = issues.some(([,v]) => v !== 'warning') ? 'bad' : issues.length ? 'warn' : 'ok';
+    html = devCell('State', st === 'Sampling' ? 'Running' : st === 'Idle' ? 'Standby' : st, stCls)
+      + devCell('Model', d.model || d.product || '—')
+      + devCell('Core temp', d.temp_c != null ? `${d.temp_c.toFixed(1)} °C` : '—')
+      + devCell('Health', issues.length ? issues.map(([k,v]) => `${k} ${v}`).join(', ') : 'All normal', worst)
+      + devCell('Faults', d.fault_codes && d.fault_codes.length ? d.fault_codes.length + ' active' : 'None', d.fault_codes && d.fault_codes.length ? 'warn' : '')
+      + devCell('Firmware', d.firmware || '—');
+  }
+  $('devGrid').innerHTML = html;
+  const ctl = operator && fresh && d.reachable && d.control;
+  $('devCtl').style.display = ctl ? 'flex' : 'none';
+  if (ctl) { $('modeNormal').classList.toggle('on', d.state_code === 1); $('modeStandby').classList.toggle('on', d.state_code === 2); }
+}
+function lidarColor(mode){
+  lidar.color = mode;
+  $('colHeight').classList.toggle('on', mode === 'height'); $('colInt').classList.toggle('on', mode === 'intensity');
+  window.BearLidar && BearLidar.setColor(mode);
+}
+function lidarRender(){
+  renderDevice();
+  const js = jetsonState();
+  const label = {streaming:'Jetson streaming', idle:'Jetson ready', offline:'Jetson offline', unknown:'Jetson status unknown'}[js] || js;
+  const s = lidar.status || {};
+  $('lidarInfo').textContent = label;
+  if (lidar.on && lidar.frames) {
+    const age = lidar.lastFrameTs ? (Date.now() - lidar.lastFrameTs) / 1000 : null;
+    $('lidarHud').textContent = `${lidar.lastCount.toLocaleString()} points · frame ${ago(age)} · ${(lidar.lastSize/1024).toFixed(1)} KB/frame · ${(lidar.bytes/1e6).toFixed(1)} MB this session`;
+  } else $('lidarHud').textContent = '';
+  if (lidar.on && !lidar.frames && js === 'offline') $('lidarOverlayText').textContent = 'The Jetson is offline. Start the LiDAR bridge on the Jetson.';
+}
+setInterval(lidarRender, 1000);
+
 // ---------- CSV export ----------
 function saveCSV(text, name){
   const blob = new Blob([text], {type:'text/csv'});
@@ -437,6 +617,99 @@ function downloadCSV(){
 
 if (typeof mqtt === 'undefined') { cloudState = 'offline'; render(); say('Could not load the dashboard. Check your internet connection.','bad'); }
 else connectViewer();
+</script>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+               "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const canvas = document.getElementById('lidarCanvas'), box = document.getElementById('lidarBox');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x05080c);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
+camera.up.set(0, 0, 1);                                   // LiDAR frame: z is up
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+
+const grid = new THREE.GridHelper(80, 16, 0x2b3646, 0x18202b);
+grid.rotation.x = Math.PI / 2; grid.position.z = -1.6;      // roughly road level for a pole-mounted sensor
+scene.add(grid);
+const sensor = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.8, 16), new THREE.MeshBasicMaterial({ color: 0xf59e0b }));
+sensor.rotation.x = -Math.PI / 2; scene.add(sensor);         // orange marker = LiDAR position, pointing along +x
+
+const MAXP = 20000;
+const pos = new Float32Array(MAXP * 3), col = new Float32Array(MAXP * 3);
+const geom = new THREE.BufferGeometry();
+geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+geom.setAttribute('color', new THREE.BufferAttribute(col, 3));
+geom.setDrawRange(0, 0);
+const points = new THREE.Points(geom, new THREE.PointsMaterial({ size: 0.14, vertexColors: true, sizeAttenuation: true }));
+scene.add(points);
+
+let mode = 'height', last = null, active = false;
+function resetView(){ camera.position.set(-13, -15, 9); controls.target.set(5, 0, -1.2); controls.update(); }
+function topView(){ camera.position.set(0.01, 0, 55); controls.target.set(0, 0, 0); controls.update(); }
+resetView();
+
+const tmp = new THREE.Color();
+function paint(){
+  if (!last) return;
+  const { n, z, inten } = last;
+  let lo = Infinity, hi = -Infinity;
+  if (mode === 'height') { for (let i = 0; i < n; i++) { if (z[i] < lo) lo = z[i]; if (z[i] > hi) hi = z[i]; } }
+  for (let i = 0; i < n; i++) {
+    const t = mode === 'height' ? (z[i] - lo) / Math.max(1e-3, hi - lo) : inten[i] / 255;
+    tmp.setHSL(0.66 * (1 - Math.min(1, Math.max(0, t))), 0.95, 0.55);   // blue (low) -> red (high)
+    col[i*3] = tmp.r; col[i*3+1] = tmp.g; col[i*3+2] = tmp.b;
+  }
+  geom.attributes.color.needsUpdate = true;
+}
+
+async function inflate(u8){
+  const ds = new DecompressionStream('deflate');            // zlib format
+  return new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(ds)).arrayBuffer());
+}
+// Frame: "BAL1" | ver u8 | flags u8 | count u32 | ts_ms u64 | zlib( x i16[n] | y i16[n] | z i16[n] | intensity u8[n] )
+async function update(bytes){
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]) !== 'BAL1') throw new Error('bad frame');
+  const flags = bytes[5], count = dv.getUint32(6, true), ts = Number(dv.getBigUint64(10, true));
+  let body = bytes.subarray(18);
+  if (flags & 1) body = await inflate(body); else body = body.slice();
+  const n = Math.min(count, MAXP);
+  const xyz = new Int16Array(body.buffer, body.byteOffset, 3 * count);
+  const inten = body.subarray(6 * count, 7 * count);
+  const z = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    pos[i*3] = xyz[i] / 100; pos[i*3+1] = xyz[count + i] / 100; pos[i*3+2] = z[i] = xyz[2*count + i] / 100;
+  }
+  last = { n, z, inten };
+  geom.attributes.position.needsUpdate = true;
+  geom.setDrawRange(0, n);
+  geom.computeBoundingSphere();
+  paint();
+  return { count: n, ts };
+}
+
+function resize(){
+  const w = box.clientWidth, h = box.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(box); resize();
+function loop(){ if (active && !document.hidden) { controls.update(); renderer.render(scene, camera); } requestAnimationFrame(loop); }
+loop();
+renderer.render(scene, camera);
+
+window.BearLidar = {
+  update, resetView, topView,
+  setColor(m){ mode = m; paint(); },
+  active(on){ active = on; if (!on) renderer.render(scene, camera); },
+};
 </script>
 </body>
 </html>
