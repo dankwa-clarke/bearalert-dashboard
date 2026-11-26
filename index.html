@@ -145,12 +145,14 @@ td.name{font-weight:650}
 .health.warn .h1::before{animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{50%{opacity:.25}}
 
-[data-theme="light"]{--bg:#f4f6fa;--panel:rgba(255,255,255,.85);--panel2:#ffffff;--line:rgba(15,23,42,.09);--line2:rgba(15,23,42,.18);
-  --text:#0f172a;--muted:#5b6678;--ok:#059669;--red:#dc2626;--warn:#b45309;--accent:#f59e0b;--accent2:#fbbf24;
+[data-theme="light"]{--bg:#f4f6fa;--panel:rgba(255,255,255,.85);--panel2:#ffffff;--line:rgba(15,23,42,.14);--line2:rgba(15,23,42,.26);
+  --text:#000000;--muted:#2b3442;--ok:#059669;--red:#dc2626;--warn:#b45309;--accent:#f59e0b;--accent2:#fbbf24;
   --hdr:rgba(244,246,250,.78);--sunk:rgba(15,23,42,.035);--input:#ffffff;--danger-text:#b91c1c;
   --glow1:rgba(245,158,11,.14);--glow2:rgba(56,189,248,.10);
   --shadow:0 1px 2px rgba(15,23,42,.05),0 8px 24px -12px rgba(15,23,42,.18);color-scheme:light}
 [data-theme="light"] .secondary{background:#fff}
+[data-theme="light"] body{font-weight:500}
+[data-theme="light"] .tile .k,[data-theme="light"] .devgrid .k,[data-theme="light"] th,[data-theme="light"] td[data-label]::before{font-weight:700}
 [data-theme="light"] .secondary:hover{background:#f1f5f9}
 [data-theme="light"] tbody tr:hover{background:rgba(15,23,42,.03)}
 [data-theme="light"] .lidar .overlay,[data-theme="light"] .lidar .hud{color:#a3aec0}
