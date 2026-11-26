@@ -272,7 +272,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;margin-top:32px;paddi
     <button class="secondary" onclick="lidarStop()">Stop</button>
   </div>
 
-  <footer><div class="univ">Morgan State University</div><div>SABA Lab · BearAlert</div></footer>
+  <footer><div class="univ">Morgan State University</div><div>SABA Lab · BearAlert · <span id="fwSig">Firmware 2.1</span></div></footer>
 </main>
 
 <script>
@@ -506,13 +506,13 @@ function render(){
   if (showDetails && state) {
     parts.push(`<span>up <b class="num">${uptimeText(state.uptime)}</b></span>`);
     if (state.ntp != null) parts.push(`<span>clock <b>${state.ntp ? 'synced' : 'not synced'}</b></span>`);
-    if (state.fw) parts.push(`<span>fw <b class="num">${esc(state.fw)}</b></span>`);
     if (cloudDelay != null && online) parts.push(`<span>cloud delay <b class="num">${Math.round(cloudDelay)} ms</b></span>`);
     if (lastSeenMs) parts.push(`<span>updated <b>${ago((Date.now()-lastSeenMs)/1000)}</b></span>`);
   }
   if (operator && cloudOk) parts.push(`<span>signed in as <b>${esc(operator.user)}</b></span>`);
   if (state) parts.push(`<button class="linkbtn" onclick="showDetails=!showDetails;render()">${showDetails ? 'Hide details' : 'Details'}</button>`);
   $('sys').innerHTML = parts.join('');
+  if (state && state.fw) $('fwSig').textContent = 'Firmware ' + String(state.fw).replace(/^v/i,'');
   renderHealth(online);
   if (!state) return;
 
