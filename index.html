@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BearAlert | SABA Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#070a0f">
 <script src="https://unpkg.com/mqtt@5/dist/mqtt.min.js"></script>
 <script>
 // ================= CONFIGURE ME =================
@@ -16,7 +19,7 @@ const CONFIG = {
   viewerUser: "bearalert-viewer",
   viewerPass: "linda1324@!L",
   // LiDAR 3D view: a second login with "Publish Only" on bearalert/tx1/lidar/req. It only lets the
-  // page tell the Jetson that someone is watching, so it starts streaming.
+  // page tell the edge device that someone is watching, so it starts streaming.
   lidarReqUser: "lidar-request",
   lidarReqPass: "charles1324@!L",
   lidarAutoStopMin: 10,           // live view stops by itself after this many minutes (saves data)
@@ -24,104 +27,141 @@ const CONFIG = {
 // ================================================
 </script>
 <style>
-:root{--bg:#0b0f14;--panel:#121820;--line:#263040;--text:#e8edf3;--muted:#8592a3;--accent:#f59e0b;--ok:#3fb950;--red:#f85149;--warn:#e3b341;
-      --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+:root{--bg:#070a0f;--panel:rgba(20,26,36,.72);--panel2:#111720;--line:rgba(148,163,184,.12);--line2:rgba(148,163,184,.22);
+      --text:#eef2f7;--muted:#8b97a8;--accent:#f59e0b;--accent2:#fbbf24;--ok:#34d399;--red:#f87171;--warn:#fbbf24;
+      --radius:16px;--shadow:0 1px 0 rgba(255,255,255,.04) inset,0 10px 30px -12px rgba(0,0,0,.6);
+      --font:'Inter',system-ui,-apple-system,Segoe UI,sans-serif;
+      --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 *{box-sizing:border-box}
 html,body{overflow-x:hidden}
-body{margin:0;background:var(--bg);color:var(--text);font:17px system-ui,-apple-system,Segoe UI,sans-serif}
-.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+body{margin:0;color:var(--text);font:16px/1.45 var(--font);-webkit-font-smoothing:antialiased;
+     background:radial-gradient(1200px 600px at 85% -10%,rgba(245,158,11,.10),transparent 60%),
+                radial-gradient(900px 500px at -10% 10%,rgba(56,189,248,.07),transparent 60%),var(--bg);background-attachment:fixed;min-height:100vh}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
 .muted{color:var(--muted)}
-header{border-bottom:1px solid var(--line);padding:18px max(20px,calc((100vw - 1260px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.brand{font-size:28px;font-weight:750;letter-spacing:-.5px}.brand span{color:var(--accent)}
-.sub{font-size:14px;color:var(--muted);margin-top:3px}
-.sys{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;font-size:15px;color:var(--muted)}
+header{position:sticky;top:0;z-index:10;backdrop-filter:blur(14px) saturate(140%);-webkit-backdrop-filter:blur(14px) saturate(140%);
+       background:rgba(7,10,15,.7);border-bottom:1px solid var(--line);padding:14px max(20px,calc((100vw - 1260px)/2));
+       display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{font-size:24px;font-weight:800;letter-spacing:-.04em;display:flex;align-items:center;gap:10px}
+.brand .hl{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand .logo{width:30px;height:30px;flex:0 0 auto;filter:drop-shadow(0 6px 14px rgba(245,158,11,.45))}
+.sub{font-size:13px;color:var(--muted);margin-top:2px;letter-spacing:.01em}
+.sys{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:14px;color:var(--muted)}
+.sys>span:first-child{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
 .sys b{color:var(--text);font-weight:600}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--muted);margin-right:7px;vertical-align:1px}
-.dot.ok{background:var(--ok)}.dot.bad{background:var(--red)}.dot.warn{background:var(--warn)}
-main{max-width:1300px;margin:auto;padding:22px 20px}
-.health{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--muted);border-radius:10px;padding:14px 18px;margin-bottom:12px}
-.health.ok{border-left-color:var(--ok)}.health.warn{border-left-color:var(--warn)}.health.bad{border-left-color:var(--red)}
-.health .h1{font-size:24px;font-weight:750}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--muted);margin-right:8px;vertical-align:1px}
+.dot.ok{background:var(--ok);box-shadow:0 0 0 3px rgba(52,211,153,.18),0 0 10px rgba(52,211,153,.6)}
+.dot.bad{background:var(--red);box-shadow:0 0 0 3px rgba(248,113,113,.18)}
+.dot.warn{background:var(--warn);box-shadow:0 0 0 3px rgba(251,191,36,.18)}
+main{max-width:1300px;margin:auto;padding:26px 20px}
+.health{position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--panel);
+        border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:14px;box-shadow:var(--shadow)}
+.health::after{content:'';position:absolute;inset:0;pointer-events:none;opacity:.9;background:linear-gradient(90deg,rgba(139,151,168,.10),transparent 55%)}
+.health.ok::after{background:linear-gradient(90deg,rgba(52,211,153,.16),transparent 55%)}
+.health.warn::after{background:linear-gradient(90deg,rgba(251,191,36,.16),transparent 55%)}
+.health.bad::after{background:linear-gradient(90deg,rgba(248,113,113,.18),transparent 55%)}
+.health .h1{font-size:24px;font-weight:750;letter-spacing:-.03em}
 .health.ok .h1{color:var(--ok)}.health.warn .h1{color:var(--warn)}.health.bad .h1{color:var(--red)}
-.health .h2{font-size:15px;color:var(--muted)}
-.linkbtn{background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:14px;text-decoration:underline;cursor:pointer}
-.linkbtn:hover{color:var(--text);filter:none}
-.tiles{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px}
-.tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
-.tile .k{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.tile .v{font-size:28px;font-weight:700;margin-top:6px;white-space:nowrap}
-.tile .d{font-size:14px;color:var(--muted);margin-top:4px}
-.actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0 6px;align-items:center}
-button{border:0;border-radius:8px;padding:11px 17px;font:600 15px system-ui,sans-serif;cursor:pointer;color:#111827;background:var(--accent)}
-button:hover{filter:brightness(1.12)}button:disabled{opacity:.5;cursor:not-allowed;filter:none}
-.secondary{background:#1c2430;color:var(--text);border:1px solid var(--line)}.danger{background:#da3633;color:#fff}
+.health .h2{font-size:14px;color:var(--muted)}
+.linkbtn{background:none;border:0;padding:0;color:var(--muted);font:inherit;font-size:13px;text-decoration:none;border-bottom:1px dashed var(--line2);cursor:pointer;border-radius:0;box-shadow:none}
+.linkbtn:hover{color:var(--text);filter:none;transform:none}
+.tiles{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--shadow);transition:border-color .2s}
+.tile:hover{border-color:var(--line2)}
+.tile .k{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.tile .v{font-size:32px;font-weight:700;margin-top:8px;white-space:nowrap;letter-spacing:-.03em}
+.tile .d{font-size:13px;color:var(--muted);margin-top:4px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px;align-items:center}
+button{border:0;border-radius:10px;padding:10px 16px;font:600 14px var(--font);cursor:pointer;color:#1a1205;
+       background:linear-gradient(180deg,var(--accent2),var(--accent));box-shadow:0 1px 0 rgba(255,255,255,.3) inset,0 6px 16px -6px rgba(245,158,11,.6);
+       transition:transform .12s,filter .15s,background .15s,border-color .15s}
+button:hover{filter:brightness(1.08);transform:translateY(-1px)}
+button:active{transform:translateY(0)}
+button:disabled{opacity:.5;cursor:not-allowed;filter:none;transform:none}
+.secondary{background:rgba(148,163,184,.08);color:var(--text);border:1px solid var(--line2);box-shadow:none}
+.secondary:hover{background:rgba(148,163,184,.14);filter:none}
+.danger{background:rgba(248,113,113,.12);color:#fecaca;border:1px solid rgba(248,113,113,.35);box-shadow:none}
+.danger:hover{background:rgba(248,113,113,.2);filter:none}
 .spacer{flex:1}
-.login{display:none;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
-.login input{background:var(--bg);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:10px;font:inherit;min-width:180px}
-.msg{min-height:24px;margin:6px 0 10px;font-size:15px}.msg.ok{color:var(--ok)}.msg.bad{color:var(--red)}.msg.warn{color:var(--warn)}
-.tablewrap{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:16px}
-th,td{padding:11px 12px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
-th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;background:#0f141b;position:sticky;top:0}
+.login{display:none;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius)}
+.login input{background:rgba(0,0,0,.3);border:1px solid var(--line2);color:var(--text);border-radius:10px;padding:10px 12px;font:inherit;min-width:200px;outline:none;transition:border-color .15s,box-shadow .15s}
+.login input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,158,11,.2)}
+.msg{min-height:24px;margin:6px 0 10px;font-size:14px}.msg.ok{color:var(--ok)}.msg.bad{color:var(--red)}.msg.warn{color:var(--warn)}
+.tablewrap{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow-x:auto;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;font-size:15px}
+th,td{padding:13px 14px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;background:rgba(0,0,0,.2);position:sticky;top:0}
+tbody tr{transition:background .15s}tbody tr:hover{background:rgba(148,163,184,.05)}
 th:first-child,td:first-child,th:nth-child(2),td:nth-child(2),th:nth-child(3),td:nth-child(3){text-align:left}
 tr:last-child td{border-bottom:0}
 td.name{font-weight:650}
-.st{font-size:13px;font-weight:700;letter-spacing:.04em}
-.st.ok{color:var(--ok)}.st.bad{color:var(--red)}.st.warn{color:var(--warn)}.st.idle{color:var(--muted)}
-.bar{display:inline-block;width:46px;height:6px;border-radius:3px;background:#263040;margin-left:8px;vertical-align:2px;overflow:hidden}
-.bar i{display:block;height:100%;background:var(--ok)}
+.st{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;letter-spacing:.05em;padding:3px 10px;border-radius:999px;background:rgba(139,151,168,.12)}
+.st.ok{color:var(--ok);background:rgba(52,211,153,.12)}.st.bad{color:var(--red);background:rgba(248,113,113,.12)}
+.st.warn{color:var(--warn);background:rgba(251,191,36,.12)}.st.idle{color:var(--muted)}
+.bar{display:inline-block;width:52px;height:6px;border-radius:3px;background:rgba(148,163,184,.15);margin-left:8px;vertical-align:2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--ok);border-radius:3px}
 .macsub{display:none}
 .batticon{vertical-align:middle;color:var(--muted)}
 .battval{display:inline-flex;align-items:center;gap:6px}
-.legend{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.6}
-.stale .tiles,.stale .tablewrap{opacity:.5}
-.section-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:26px 0 10px;flex-wrap:wrap}
-.section-h h2{font-size:18px;margin:0}
+.stale .tiles,.stale .tablewrap{opacity:.45;filter:grayscale(.4)}
+.section-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:32px 0 12px;flex-wrap:wrap}
+.section-h h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0}
 .section-h .info{font-size:14px;color:var(--muted)}
-.devpanel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px}
-.devgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px 18px}
-.devgrid .k{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.devgrid .v{font-size:17px;font-weight:600;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.devpanel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:14px;box-shadow:var(--shadow)}
+.devgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px 20px}
+.devgrid .k{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.devgrid .v{font-size:17px;font-weight:600;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .devgrid .v.ok{color:var(--ok)}.devgrid .v.warn{color:var(--warn)}.devgrid .v.bad{color:var(--red)}
-.devctl{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);flex-wrap:wrap}
-.devctl .lbl{font-size:14px;color:var(--muted);margin-right:4px}
-.devctl button{padding:8px 14px;font-size:14px}
-.devctl .on{background:var(--accent);color:#111827;border-color:var(--accent)}
-.lidar{position:relative;height:min(62vh,560px);min-height:320px;background:#05080c;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.devctl{display:flex;align-items:center;gap:8px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);flex-wrap:wrap}
+.devctl .lbl{font-size:13px;color:var(--muted);margin-right:4px}
+.devctl button{padding:8px 14px;font-size:13px}
+.devctl .on,.lidar-tools .on{background:linear-gradient(180deg,var(--accent2),var(--accent));color:#1a1205;border-color:transparent}
+.lidar{position:relative;height:min(62vh,560px);min-height:320px;background:radial-gradient(ellipse at 50% 30%,#0c121b,#04060a);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
 .lidar canvas{display:block;width:100%;height:100%}
-.lidar .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--muted);text-align:center;padding:20px;background:rgba(5,8,12,.72)}
+.lidar .overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--muted);text-align:center;padding:20px;background:rgba(4,6,10,.6);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .lidar .overlay[hidden]{display:none}
-.lidar .overlay button{flex:0 0 auto}
-.lidar .hud{position:absolute;left:12px;bottom:10px;font-size:13px;color:var(--muted);pointer-events:none}
-.lidar-tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
-.lidar-tools button{padding:8px 13px;font-size:14px}
-.lidar-tools .on{background:var(--accent);color:#111827;border-color:var(--accent)}
-footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;padding:16px 10px;border-top:1px solid var(--line)}
+.lidar .overlay button{flex:0 0 auto;padding:12px 22px;font-size:15px}
+.lidar .hud{position:absolute;left:12px;bottom:12px;font-size:12px;color:var(--muted);pointer-events:none;background:rgba(4,6,10,.6);border:1px solid var(--line);border-radius:999px;padding:4px 12px}
+.lidar .hud:empty{display:none}
+.lidar-tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;align-items:center}
+.lidar-tools button{padding:8px 13px;font-size:13px}
+.pill{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text);background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:5px 12px}
+.pill .dot{margin-right:0}
+.section-h .right{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.section-h .right button{padding:8px 13px;font-size:13px}
+.health .h1::before{content:'';display:inline-block;width:10px;height:10px;border-radius:50%;background:currentColor;margin-right:12px;vertical-align:3px;box-shadow:0 0 12px currentColor}
+.health.warn .h1::before{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+footer{text-align:center;color:var(--muted);font-size:12px;margin-top:32px;padding:18px 10px;border-top:1px solid var(--line)}
 @media(max-width:900px){.tiles{grid-template-columns:1fr 1fr}.tile.wide{grid-column:1/-1}}
-@media(max-width:420px){.health .h1{font-size:20px}.tile .v{font-size:22px}button{flex:1 1 40%}.linkbtn{flex:0 0 auto}.spacer{display:none}}
-/* Phones: each receiver becomes a compact card so nothing scrolls sideways */
+@media(max-width:420px){.health .h1{font-size:20px}.tile .v{font-size:24px}.actions button{flex:1 1 40%}.linkbtn{flex:0 0 auto}.spacer{display:none}}
 @media(max-width:700px){
   main{padding:16px 12px}
-  header{padding:14px 12px}
-  .tablewrap{background:none;border:0;overflow:visible}
+  header{padding:12px}
+  .tablewrap{background:none;border:0;overflow:visible;box-shadow:none}
   table,tbody{display:block;width:100%}
   thead{display:none}
-  tr{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px}
-  td{display:block;padding:0;border:0;text-align:left!important;white-space:nowrap;font-size:16px}
+  tr{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+  td{display:block;padding:0;border:0;text-align:left!important;white-space:nowrap;font-size:15px}
   td.name{grid-column:1/3;grid-row:1;font-size:17px}
-  .macsub{display:block;font-size:13px;font-weight:400;color:var(--muted);margin-top:2px}
+  .macsub{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:2px}
   td.mac{display:none}
   td.batt{grid-column:3;grid-row:1;align-self:center}
   td.stc{grid-column:4;grid-row:1;align-self:center;text-align:right!important}
-  td[data-label]::before{content:attr(data-label);display:block;font:600 11px system-ui,sans-serif;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-bottom:2px}
+  td[data-label]::before{content:attr(data-label);display:block;font:600 10px var(--font);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
   td[colspan]{grid-column:1/-1;text-align:center!important;white-space:normal}
-  .bar{display:block;width:100%;max-width:70px;margin:4px 0 0}
+  .bar{display:block;width:100%;max-width:70px;margin:5px 0 0}
+  .devgrid{grid-template-columns:repeat(3,1fr);gap:10px}
+  .devgrid .v{font-size:15px}
+  .lidar{height:52vh}
+  .section-h{margin-top:26px}
 }
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <header>
-  <div><div class="brand">Bear<span>Alert</span></div><div class="sub">SABA Lab · Work zone alert monitor</div></div>
+  <div><div class="brand"><svg class="logo" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#ea580c"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#lg)"/><path d="M16 7.5 25.5 24h-19z" fill="none" stroke="#1a1205" stroke-width="2.4" stroke-linejoin="round"/><path d="M16 13.5v4.5" stroke="#1a1205" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="21" r="1.4" fill="#1a1205"/></svg><span>Bear<span class="hl">Alert</span></span></div><div class="sub">SABA Lab · Work zone alert monitor</div></div>
   <div class="sys" id="sys"><span><span class="dot" id="dot"></span><b id="devstate">Connecting…</b></span></div>
 </header>
 
@@ -139,8 +179,6 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
       <button class="danger" onclick="confirmReset()">Reset statistics</button>
     </span>
     <span class="spacer"></span>
-    <button class="secondary" onclick="downloadLogCSV()">Alert log CSV</button>
-    <button class="secondary" onclick="downloadCSV()">Summary CSV</button>
     <button id="loginBtn" class="secondary" onclick="showLogin(true)">Operator sign-in</button>
     <button id="logoutBtn" class="secondary" style="display:none" onclick="logout()">Sign out</button>
   </div>
@@ -151,6 +189,12 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
   </form>
   <div id="msg" class="msg"></div>
 
+  <div class="section-h"><h2>Receivers</h2>
+    <div class="right">
+      <button class="secondary" onclick="downloadLogCSV()">Download alert log</button>
+      <button class="secondary" onclick="downloadCSV()">Download summary</button>
+    </div>
+  </div>
   <div class="tablewrap">
     <table>
       <thead><tr>
@@ -161,31 +205,31 @@ footer{text-align:center;color:var(--muted);font-size:13px;margin-top:26px;paddi
     </table>
   </div>
 
-  <div class="section-h"><h2>LiDAR</h2><span class="info" id="lidarInfo">Jetson status unknown</span></div>
+  <div class="section-h"><h2>LiDAR</h2><span class="pill"><span class="dot" id="lidarDot"></span><span id="lidarInfo">Checking…</span></span></div>
   <div class="devpanel">
-    <div class="devgrid" id="devGrid"><div><div class="k">LiDAR</div><div class="v muted">Waiting for the Jetson…</div></div></div>
+    <div class="devgrid" id="devGrid"><div><div class="k">LiDAR</div><div class="v muted">Waiting for the LiDAR…</div></div></div>
     <div class="devctl" id="devCtl" style="display:none">
       <span class="lbl">Work mode</span>
       <button class="secondary" id="modeNormal" onclick="lidarMode('lidar_normal')">Normal</button>
       <button class="secondary" id="modeStandby" onclick="lidarMode('lidar_standby')">Standby</button>
-      <span class="muted" style="font-size:13px">Standby stops the laser and the point cloud until switched back.</span>
+      <span class="muted" style="font-size:13px">Standby pauses the LiDAR until you switch back.</span>
     </div>
   </div>
   <div class="lidar" id="lidarBox">
     <canvas id="lidarCanvas"></canvas>
     <div class="hud num" id="lidarHud"></div>
     <div class="overlay" id="lidarOverlay">
-      <div id="lidarOverlayText">The live 3D view streams from the LiDAR only while it is open, to save data.</div>
-      <button onclick="lidarStart()">Start live 3D view</button>
+      <div id="lidarOverlayText">Live 3D view is off.</div>
+      <button onclick="lidarStart()">Start live view</button>
     </div>
   </div>
   <div class="lidar-tools" id="lidarTools" style="display:none">
-    <button class="secondary on" id="colHeight" onclick="lidarColor('height')">Colour by height</button>
-    <button class="secondary" id="colInt" onclick="lidarColor('intensity')">Colour by intensity</button>
+    <button class="secondary on" id="colHeight" onclick="lidarColor('height')">Color by height</button>
+    <button class="secondary" id="colInt" onclick="lidarColor('intensity')">Color by intensity</button>
     <button class="secondary" onclick="window.BearLidar && BearLidar.resetView()">Reset view</button>
     <button class="secondary" onclick="window.BearLidar && BearLidar.topView()">Top view</button>
     <span class="spacer"></span>
-    <button class="secondary" onclick="lidarStop()">Stop live view</button>
+    <button class="secondary" onclick="lidarStop()">Stop</button>
   </div>
 
   <footer>SABA Lab · BearAlert</footer>
@@ -308,7 +352,7 @@ async function sendCommand(cmd){
     timer: setTimeout(() => { pending = null; $('trigger').disabled = false; say('No response from the transmitter after 10 seconds.','bad'); }, 10000) };
   say(cmd === 'alert' ? 'Sending alert…' : 'Sending reset…','warn');
   client.publish(T.cmd, `${cmd}|${nonce}|${sig}`, {qos:1, retain:false}, err => {
-    if (err) { clearTimeout(pending.timer); pending = null; $('trigger').disabled = false; say('The cloud rejected the command. This login may not have publish permission.','bad'); }
+    if (err) { clearTimeout(pending.timer); pending = null; $('trigger').disabled = false; say('Command rejected. This account is not allowed to send commands.','bad'); }
   });
 }
 function confirmReset(){ if (confirm('Erase all saved BearAlert statistics and the alert log, and restart the transmitter?')) sendCommand('reset'); }
@@ -414,7 +458,7 @@ function renderHealth(online){
 function render(){
   const online = isOnline(), cloudOk = cloudState === 'connected';
   $('main').classList.toggle('stale', !!state && !online);
-  const devLabel = !cloudOk ? (cloudState === 'denied' ? 'Viewer login rejected — check CONFIG' : cloudState === 'offline' ? 'Cloud offline' : 'Connecting…')
+  const devLabel = !cloudOk ? (cloudState === 'denied' ? 'Access denied' : cloudState === 'offline' ? 'Cloud offline' : 'Connecting…')
                  : !state ? 'Waiting for transmitter…' : online ? 'Transmitter online' : 'Transmitter offline';
   const dotCls = !cloudOk ? (cloudState === 'connecting' ? 'warn' : 'bad') : !state ? 'warn' : online ? 'ok' : 'bad';
   const parts = [`<span><span class="dot ${dotCls}"></span><b>${devLabel}</b></span>`];
@@ -460,7 +504,7 @@ function render(){
     return `<tr>
       <td class="name">${esc(r.name)}<span class="macsub num">${esc(shortMac(r.mac))}</span></td>
       <td class="num muted mac">${esc(shortMac(r.mac))}</td>
-      <td class="stc"><span class="st ${status[1]}">● ${status[0]}</span></td>
+      <td class="stc"><span class="st ${status[1]}"><span class="dot ${status[1]}" style="margin:0;box-shadow:none;width:6px;height:6px"></span>${status[0]}</span></td>
       <td class="num batt">${battCell(r.battery)}</td>
       <td class="num" data-label="Last RTT">${n ? ms(r.last,2) : '—'}</td><td class="num" data-label="Avg RTT">${n ? ms(r.avg) : '—'}</td>
       <td class="num" data-label="Delivery">${dlv == null ? '—' : dlv.toFixed(1) + '%'}<span class="bar"><i style="width:${dlv||0}%;background:${dlv>=95?'var(--ok)':dlv>=80?'var(--warn)':'var(--red)'}"></i></span></td>
@@ -472,7 +516,7 @@ setInterval(render, 1000);
 // ---------- LiDAR 3D view ----------
 const lidar = { device:null, deviceAt:0, pending:null, on:false, req:null, ping:null, stopTimer:null, status:null, statusAt:0, frames:0, bytes:0,
                 lastFrameTs:0, lastCount:0, lastSize:0, color:'height' };
-function jetsonState(){
+function streamState(){
   if (!lidar.status) return 'unknown';
   if (lidar.status.state === 'offline') return 'offline';
   return (Date.now() - (lidar.status.ts || lidar.statusAt)) / 1000 < 30 ? lidar.status.state : 'offline';
@@ -481,17 +525,17 @@ function lidarStart(){
   if (!client || !client.connected) return say('Not connected to the cloud yet.','bad');
   lidar.on = true; lidar.frames = 0; lidar.bytes = 0;
   client.subscribe(T.lframe, {qos:0});
-  // Second, publish-only connection that tells the Jetson someone is watching.
+  // Second, publish-only connection that tells the edge device someone is watching.
   lidar.req = mqtt.connect(`wss://${CONFIG.host}:${CONFIG.port}${CONFIG.path}`, {
     username:CONFIG.lidarReqUser, password:CONFIG.lidarReqPass, clientId:'bearweb-lidar-'+Math.random().toString(16).slice(2,10),
     clean:true, reconnectPeriod:5000, connectTimeout:10000, protocolVersion:4 });
-  lidar.req.on('error', err => { if (err && (err.code === 4 || err.code === 5)) { lidarStop(); say('The LiDAR request login was rejected. Check lidarReqUser and lidarReqPass in the page settings.','bad'); } });
+  lidar.req.on('error', err => { if (err && (err.code === 4 || err.code === 5)) { lidarStop(); say('Live view is not available right now.','bad'); } });
   const ping = () => { if (!document.hidden && lidar.req && lidar.req.connected) lidar.req.publish(T.lreq, '1', {qos:0}); };
   lidar.req.on('connect', ping);
   lidar.ping = setInterval(ping, 4000);
-  lidar.stopTimer = setTimeout(() => { lidarStop(); $('lidarOverlayText').textContent = `Live view stopped after ${CONFIG.lidarAutoStopMin} minutes to save data.`; },
+  lidar.stopTimer = setTimeout(() => { lidarStop(); $('lidarOverlayText').textContent = `Live view stopped after ${CONFIG.lidarAutoStopMin} minutes.`; },
                                CONFIG.lidarAutoStopMin * 60000);
-  $('lidarOverlayText').textContent = 'Waiting for the first frame from the LiDAR…';
+  $('lidarOverlayText').textContent = 'Starting live view…';
   $('lidarTools').style.display = 'flex';
   window.BearLidar && BearLidar.active(true);
   lidarRender();
@@ -502,7 +546,7 @@ function lidarStop(){
   clearInterval(lidar.ping); clearTimeout(lidar.stopTimer);
   if (lidar.req) { lidar.req.end(true); lidar.req = null; }
   $('lidarOverlay').hidden = false;
-  $('lidarOverlayText').textContent = 'The live 3D view streams from the LiDAR only while it is open, to save data.';
+  $('lidarOverlayText').textContent = 'Live 3D view is off.';
   $('lidarTools').style.display = 'none';
   window.BearLidar && BearLidar.active(false);
   lidarRender();
@@ -517,7 +561,7 @@ async function lidarFrame(payload){
   } catch(e) { console.warn('LiDAR frame error', e); }
   lidarRender();
 }
-// Normal / Standby (signed with the operator password, verified on the Jetson)
+// Normal / Standby (signed with the operator password)
 async function lidarMode(cmd){
   if (!operator || !client || !client.connected) return say('Sign in as operator to change the LiDAR mode.','warn');
   const d = lidar.device;
@@ -525,13 +569,13 @@ async function lidarMode(cmd){
   if (lidar.pending) return say('Waiting for the previous LiDAR command…','warn');
   const nonce = d.nonce, sig = await hmacHex(operator.pass, `${cmd}|${nonce}`);
   lidar.pending = { nonce, cmd, t0: performance.now(),
-    timer: setTimeout(() => { lidar.pending = null; say('No response from the Jetson (10 s).','bad'); }, 10000) };
+    timer: setTimeout(() => { lidar.pending = null; say('No response from the LiDAR after 10 seconds.','bad'); }, 10000) };
   say(cmd === 'lidar_normal' ? 'Switching the LiDAR to normal…' : 'Switching the LiDAR to standby…','warn');
   client.publish(T.lcmd, `${cmd}|${nonce}|${sig}`, {qos:1, retain:false});
 }
 const LIDAR_RESULTS = { done:['LiDAR mode changed','ok'], failed:['The LiDAR did not accept the mode change','bad'],
-  denied:['Rejected: the Jetson did not accept the operator password (operator_key)','bad'], stale:['The panel was out of date. Try again','warn'],
-  disabled:['Mode control is off on the Jetson (operator_key not set)','warn'], busy:['The Jetson is busy. Try again','warn'], unknown:['Unknown command','bad'] };
+  denied:['Rejected: wrong operator password','bad'], stale:['The panel was out of date. Try again','warn'],
+  disabled:['Mode control is not available','warn'], busy:['The LiDAR is busy. Try again','warn'], unknown:['Unknown command','bad'] };
 function lidarCheckPending(){
   const p = lidar.pending, d = lidar.device;
   if (!p || !d || !d.cmd || d.cmd.nonce !== p.nonce) return;
@@ -543,19 +587,19 @@ function devCell(k, v, cls=''){ return `<div><div class="k">${k}</div><div class
 function renderDevice(){
   const d = lidar.device, fresh = d && (Date.now() - d.ts) / 1000 < 20;
   let html;
-  if (!d) html = devCell('LiDAR', 'Waiting for the Jetson…', 'muted');
-  else if (!fresh) html = devCell('LiDAR', `No status for ${ago((Date.now() - d.ts)/1000).replace(' ago','')}`, 'bad') + devCell('Updated', ago((Date.now() - d.ts)/1000));
-  else if (!d.reachable) html = devCell('LiDAR', 'Not responding', 'bad') + devCell('IP', d.lidar_ip) + devCell('Updated', ago((Date.now() - d.ts)/1000));
+  if (!d) html = devCell('LiDAR', 'Waiting for the LiDAR…', 'muted');
+  else if (!fresh) html = devCell('LiDAR', 'Offline', 'bad') + devCell('Last seen', ago((Date.now() - d.ts)/1000));
+  else if (!d.reachable) html = devCell('LiDAR', 'Not responding', 'bad') + devCell('Last seen', ago((Date.now() - d.ts)/1000));
   else {
     const st = d.state || '—', stCls = st === 'Sampling' ? 'ok' : st === 'Error' ? 'bad' : 'warn';
     const issues = d.diag ? Object.entries(d.diag).filter(([,v]) => v !== 'normal') : [];
     const worst = issues.some(([,v]) => v !== 'warning') ? 'bad' : issues.length ? 'warn' : 'ok';
+    const faults = d.fault_codes ? d.fault_codes.length : 0;
+    const healthTxt = issues.length ? issues.map(([k,v]) => `${k} ${v}`).join(', ') : faults ? `${faults} fault${faults === 1 ? '' : 's'}` : 'All normal';
+    const healthCls = issues.length ? worst : faults ? 'warn' : 'ok';
     html = devCell('State', st === 'Sampling' ? 'Running' : st === 'Idle' ? 'Standby' : st, stCls)
-      + devCell('Model', d.model || d.product || '—')
-      + devCell('Core temp', d.temp_c != null ? `${d.temp_c.toFixed(1)} °C` : '—')
-      + devCell('Health', issues.length ? issues.map(([k,v]) => `${k} ${v}`).join(', ') : 'All normal', worst)
-      + devCell('Faults', d.fault_codes && d.fault_codes.length ? d.fault_codes.length + ' active' : 'None', d.fault_codes && d.fault_codes.length ? 'warn' : '')
-      + devCell('Firmware', d.firmware || '—');
+      + devCell('Health', healthTxt, healthCls)
+      + devCell('Temperature', d.temp_c != null ? `${d.temp_c.toFixed(1)} °C` : '—');
   }
   $('devGrid').innerHTML = html;
   const ctl = operator && fresh && d.reachable && d.control;
@@ -569,15 +613,15 @@ function lidarColor(mode){
 }
 function lidarRender(){
   renderDevice();
-  const js = jetsonState();
-  const label = {streaming:'Jetson streaming', idle:'Jetson ready', offline:'Jetson offline', unknown:'Jetson status unknown'}[js] || js;
-  const s = lidar.status || {};
+  const js = streamState();
+  const label = {streaming:'Live', idle:'Ready', offline:'Offline', unknown:'Checking…'}[js] || js;
   $('lidarInfo').textContent = label;
+  $('lidarDot').className = 'dot ' + ({streaming:'ok', idle:'ok', offline:'bad', unknown:'warn'}[js] || '');
   if (lidar.on && lidar.frames) {
     const age = lidar.lastFrameTs ? (Date.now() - lidar.lastFrameTs) / 1000 : null;
-    $('lidarHud').textContent = `${lidar.lastCount.toLocaleString()} points · frame ${ago(age)} · ${(lidar.lastSize/1024).toFixed(1)} KB/frame · ${(lidar.bytes/1e6).toFixed(1)} MB this session`;
+    $('lidarHud').textContent = `${lidar.lastCount.toLocaleString()} points · updated ${ago(age)}`;
   } else $('lidarHud').textContent = '';
-  if (lidar.on && !lidar.frames && js === 'offline') $('lidarOverlayText').textContent = 'The Jetson is offline. Start the LiDAR bridge on the Jetson.';
+  if (lidar.on && !lidar.frames && js === 'offline') $('lidarOverlayText').textContent = 'The LiDAR is offline.';
 }
 setInterval(lidarRender, 1000);
 
