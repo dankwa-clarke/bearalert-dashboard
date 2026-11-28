@@ -28,7 +28,7 @@ const CONFIG = {
 </script>
 <script>
 (function(){ let t = null; try { t = localStorage.getItem('bearalert-theme'); } catch(e) {}
-  if (t !== 'light' && t !== 'dark') t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  if (t !== 'light' && t !== 'dark') t = 'dark';            // default: dark (the button still switches)
   document.documentElement.dataset.theme = t; })();
 function toggleTheme(){
   const t = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
@@ -354,6 +354,7 @@ function onMessage(topic, payload, packet){
   }
   if (topic === T.live) {
     try { state = JSON.parse(text); } catch(e) { return; }
+    trackCharging();
     seen(packet, state.ts * 1000);
     checkPending(); render();
   }
@@ -449,8 +450,26 @@ function ago(s){ if (s == null) return '—'; s = Math.max(0, s); if (s < 60) re
 function uptimeText(s){ const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60); return (d ? d+'d ' : '') + (d||h ? h+'h ' : '') + m+'m'; }
 function clockTime(t){ return t > 1.7e9 ? new Date(t*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}) : ''; }
 
+// Charging: the receiver only lets its % climb while it is charging, so a rise means
+// "on the charger". Show the bolt for 3 minutes after the last rise (the % moves at most
+// 1 every 30 s and the transmitter reports every 2 % change); a drop clears it at once.
+const CHARGE_HOLD_MS = 180000;
+const battTrack = {};                       // mac -> {pct, riseAt}
+function trackCharging(){
+  if (!state || !state.receivers) return;
+  const now = Date.now();
+  for (const r of state.receivers) {
+    const b = r.battery, t = battTrack[r.mac] || (battTrack[r.mac] = {pct: null, riseAt: 0});
+    if (b == null || isNaN(b) || !r.online) { t.pct = null; t.riseAt = 0; continue; }
+    if (t.pct != null && b > t.pct) t.riseAt = now;
+    if (t.pct != null && b < t.pct) t.riseAt = 0;
+    t.pct = b;
+  }
+}
+const isCharging = r => { const t = battTrack[r.mac]; return !!t && t.riseAt > 0 && Date.now() - t.riseAt < CHARGE_HOLD_MS; };
+
 // Battery: receivers will report r.battery (0–100 %). Until they do, show "—".
-function battCell(b){
+function battCell(b, charging){
   if (b == null || isNaN(b))                                      // not measured yet: empty outline
     return `<span class="battval" title="Battery not measured"><svg viewBox="0 0 28 14" width="26" height="13" aria-hidden="true">`
          + `<rect x="1" y="1" width="23" height="12" rx="2.5" fill="none" stroke="var(--muted)" stroke-width="1.6"/>`
@@ -461,7 +480,9 @@ function battCell(b){
   return `<span class="battval"><svg viewBox="0 0 28 14" width="26" height="13" aria-hidden="true">`
        + `<rect x="1" y="1" width="23" height="12" rx="2.5" fill="none" stroke="var(--muted)" stroke-width="1.6"/>`
        + `<rect x="25" y="4.5" width="2.2" height="5" rx="1" fill="var(--muted)"/>`
-       + `<rect x="3" y="3" width="${w.toFixed(1)}" height="8" rx="1.2" fill="${col}"/></svg>${pct}%</span>`;
+       + `<rect x="3" y="3" width="${w.toFixed(1)}" height="8" rx="1.2" fill="${col}"/>`
+       + (charging ? `<path d="M14.5 1.5 L8.5 7.6 H12.6 L10.8 12.5 L16.8 6.3 H12.7 Z" fill="var(--warn)" stroke="var(--card, #fff)" stroke-width="0.9" stroke-linejoin="round"/>` : '')
+       + `</svg>${pct}%${charging ? '<span class="chg" title="Charging"> ⚡</span>' : ''}</span>`;
 }
 
 // ---------- Receiver presence ----------
@@ -546,7 +567,7 @@ function render(){
       <td class="name">${esc(r.name)}<span class="macsub num">${esc(shortMac(r.mac))}</span></td>
       <td class="num muted mac">${esc(shortMac(r.mac))}</td>
       <td class="stc"><span class="st ${status[1]}"><span class="dot ${status[1]}" style="margin:0;box-shadow:none;width:6px;height:6px"></span>${status[0]}</span></td>
-      <td class="num batt">${battCell(r.battery)}</td>
+      <td class="num batt">${battCell(r.battery, isCharging(r))}</td>
       <td class="num" data-label="Last RTT">${n ? ms(r.last,2) : '—'}</td><td class="num" data-label="Avg RTT">${n ? ms(r.avg) : '—'}</td>
       <td class="num" data-label="Delivery">${dlv == null ? '—' : dlv.toFixed(1) + '%'}<span class="bar"><i style="width:${dlv||0}%;background:${dlv>=95?'var(--ok)':dlv>=80?'var(--warn)':'var(--red)'}"></i></span></td>
       <td class="num" data-label="Sent / ACK">${r.sent} / ${r.acked}</td></tr>`;
